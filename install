@@ -1,156 +1,58 @@
 #!/usr/bin/env bash
-# Installation script for dotfiles. Tries GNU Stow, optionally installs it,
-# or falls back to creating safe symlinks.
-
 set -euo pipefail
 
-# Configurable behavior:
-# - Set STOW_FOLDERS (comma separated) to control which folders to install
-# - Set DOTFILES to the path of this repo. Default: $HOME/.dotfiles
-# - Export AUTO_INSTALL_STOW=1 to allow this script to attempt `sudo apt install stow`
-
-STOW_FOLDERS_DEFAULT="i3"
-STOW_FOLDERS="${STOW_FOLDERS:-$STOW_FOLDERS_DEFAULT}"
-DOTFILES="${DOTFILES:-$HOME/.dotfiles}"
-
-info() { echo "[install] $*"; }
-err() { echo "[install][ERROR] $*" >&2; }
-
-# Determine repo root (where this script lives) so we can optionally create
-# a ~/.dotfiles symlink pointing to it when requested.
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$script_dir"
-if [[ "$(basename "$script_dir")" == "scripts" ]]; then
-    repo_root="$(cd "$script_dir/.." && pwd)"
+if [[ -z "${HOME:-}" || ! -d "$HOME" || ! -w "$HOME" ]]; then
+    echo "A writable HOME directory is required to bootstrap chezmoi." >&2
+    exit 1
 fi
 
-# Option to create a ~/.dotfiles symlink pointing to this repo.
-# - Set CREATE_HOME_DOTFILES_SYMLINK=1 to allow creation
-# - Set FORCE_CREATE_HOME_DOTFILES_SYMLINK=1 to overwrite existing non-symlink
-#   ~/.dotfiles only if you really want to.
-create_home_dotfiles_symlink_if_requested() {
-    if [[ "${CREATE_HOME_DOTFILES_SYMLINK:-0}" != "1" ]]; then
-        return 0
-    fi
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+if [[ ! -f "$repo_root/.chezmoiroot" || ! -d "$repo_root/home" ]]; then
+    echo "Expected a chezmoi source root at $repo_root with .chezmoiroot and home/." >&2
+    exit 1
+fi
 
-    target="$HOME/.dotfiles"
-    if [[ -e "$target" || -L "$target" ]]; then
-        # exists: if it's the correct symlink, nothing to do
-        if [[ -L "$target" && "$(readlink -f "$target")" == "$repo_root" ]]; then
-            info "$target already points to repo_root"
-            return 0
-        fi
+if ! command -v git >/dev/null 2>&1 || ! git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Git and a cloned dotfiles repository are required." >&2
+    exit 1
+fi
 
-        if [[ -L "$target" ]]; then
-            info "Existing symlink $target points elsewhere; updating to point to repo"
-            rm -f "$target"
-            ln -s "$repo_root" "$target"
-            info "Created symlink: $target -> $repo_root"
-            return 0
-        fi
+chezmoi_bin="$(command -v chezmoi || true)"
+if [[ -z "$chezmoi_bin" && -x "$HOME/.local/bin/chezmoi" ]]; then
+    chezmoi_bin="$HOME/.local/bin/chezmoi"
+fi
 
-        # If it's a regular file or directory
-        if [[ "${FORCE_CREATE_HOME_DOTFILES_SYMLINK:-0}" == "1" ]]; then
-            info "Backing up existing $target and creating symlink to repo"
-            mv "$target" "${target}.bak.$(date +%Y%m%d_%H%M%S)"
-            ln -s "$repo_root" "$target"
-            info "Created symlink: $target -> $repo_root (previous backed up)"
-            return 0
-        else
-            err "$target exists and is not a symlink. Set FORCE_CREATE_HOME_DOTFILES_SYMLINK=1 to overwrite. Skipping auto symlink creation."
-            return 1
-        fi
+if [[ -z "$chezmoi_bin" ]]; then
+    install_dir="$HOME/.local/bin"
+    download_dir="$(mktemp -d)"
+    trap 'rm -rf "$download_dir"' EXIT
+    mkdir -p "$install_dir"
+
+    if command -v curl >/dev/null 2>&1; then
+        curl --fail --silent --show-error --location https://get.chezmoi.io \
+            --output "$download_dir/chezmoi-install.sh"
+    elif command -v wget >/dev/null 2>&1; then
+        wget --quiet https://get.chezmoi.io \
+            --output-document="$download_dir/chezmoi-install.sh"
     else
-        ln -s "$repo_root" "$target"
-        info "Created symlink: $target -> $repo_root"
+        echo "Install curl or wget to download chezmoi." >&2
+        exit 1
     fi
-}
 
-# Helper: create a symlink for a single file with backup if needed
-safe_link() {
-    local src="$1" dst="$2"
-    mkdir -p "$(dirname "$dst")"
-    if [ -e "$dst" ] || [ -L "$dst" ]; then
-        # if already symlinked to src, nothing to do
-        if [ -L "$dst" ] && [ "$(readlink -f "$dst")" = "$(readlink -f "$src")" ]; then
-            info "$dst already symlinked to source"
-            return 0
-        fi
-        local bak="${dst}.$(date +%Y%m%d_%H%M%S).bak"
-        info "Backing up existing $dst -> $bak"
-        mv -f "$dst" "$bak"
+    if ! sh "$download_dir/chezmoi-install.sh" -b "$install_dir"; then
+        echo "Failed to install chezmoi into $install_dir." >&2
+        exit 1
     fi
-    ln -s "$src" "$dst"
-    info "Linked $dst -> $src"
-}
-
-# Fallback installer that symlinks files under each stow folder into $HOME
-fallback_symlink() {
-    info "Falling back to manual symlink installation for: $STOW_FOLDERS"
-    IFS=',' read -r -a folders <<< "$STOW_FOLDERS"
-    for folder in "${folders[@]}"; do
-        folder_path="$DOTFILES/$folder"
-        if [ ! -d "$folder_path" ]; then
-            info "Skipping missing folder: $folder_path"
-            continue
-        fi
-        # For every file/dir inside the folder, create a corresponding target in $HOME
-        cd "$folder_path"
-        find . -mindepth 1 -print0 | while IFS= read -r -d '' f; do
-            src="$folder_path/${f#./}"
-            dst="$HOME/${f#./}"
-            if [ -d "$src" ]; then
-                # ensure destination directory exists
-                mkdir -p "$dst"
-                continue
-            fi
-            safe_link "$src" "$dst"
-        done
-    done
-}
-
-install_stow_and_run() {
-    info "Attempting to install stow via apt (requires sudo)"
-    if ! command -v apt-get >/dev/null 2>&1; then
-        err "apt-get not available on this system. Cannot auto-install stow."
-        return 1
-    fi
-    sudo apt-get update && sudo apt-get install -y stow
-    return $?
-}
-
-cd "$DOTFILES" || { err "Cannot cd to $DOTFILES"; exit 1; }
-
-if command -v stow >/dev/null 2>&1; then
-    info "GNU stow detected; using stow for: $STOW_FOLDERS"
-    for folder in $(echo "$STOW_FOLDERS" | sed 's/,/ /g'); do
-        info "stow: $folder"
-        # remove previous stow state for idempotency
-        stow -D "$folder" 2>/dev/null || true
-        stow "$folder"
-    done
-    info "Dotfiles installed with stow."
-    exit 0
+    chezmoi_bin="$install_dir/chezmoi"
 fi
 
-if [ "${AUTO_INSTALL_STOW:-0}" = "1" ]; then
-    if install_stow_and_run; then
-        info "Stow installed; retrying stow install"
-        for folder in $(echo "$STOW_FOLDERS" | sed 's/,/ /g'); do
-            stow -D "$folder" 2>/dev/null || true
-            stow "$folder"
-        done
-        info "Dotfiles installed with stow after auto-install."
-        exit 0
-    else
-        err "Auto-install of stow failed or unavailable. Falling back to symlink mode."
-    fi
-else
-    info "GNU stow not found. To auto-install, re-run with AUTO_INSTALL_STOW=1"
+if [[ ! -x "$chezmoi_bin" ]]; then
+    echo "chezmoi was not found or is not executable: $chezmoi_bin" >&2
+    exit 1
 fi
 
-# Final fallback: manual symlink creation
-fallback_symlink
-
-info "Dotfiles installation complete (fallback symlink mode)."
-exit 0
+exec "$chezmoi_bin" \
+    --source "$repo_root" \
+    --destination "$HOME" \
+    --no-tty \
+    init --apply --promptDefaults

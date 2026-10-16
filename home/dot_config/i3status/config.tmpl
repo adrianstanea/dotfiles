@@ -1,3 +1,4 @@
+{{- if .features.i3 -}}
 # i3status configuration file.
 # see "man i3status" for documentation.
 
@@ -31,3 +32,4 @@ load {
 disk "/" {
         format = "%avail"
 }
+{{ end -}}

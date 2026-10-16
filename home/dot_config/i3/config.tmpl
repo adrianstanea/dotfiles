@@ -1,3 +1,4 @@
+{{- if .features.i3 -}}
 # i3 config file (v4)
 # Please see https://i3wm.org/docs/userguide.html for a complete reference!
 
@@ -105,7 +106,7 @@ bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcu
 # resize window mode
 mode "resize" {
         # These bindings trigger as soon as you enter the resize mode
-        
+
         # Vim keys for resizing
         bindsym h resize shrink width 10 px or 10 ppt
         bindsym j resize grow height 10 px or 10 ppt
@@ -129,7 +130,7 @@ bindsym $mod+r mode "resize"
 bar {
         status_command i3status
         tray_output primary
-        
+
         colors {
                 background #333333
                 statusline #5eacd3
@@ -157,3 +158,4 @@ bindsym $mod+m move workspace to output left
 
 # Suspend
 bindsym $mod+Shift+period exec systemctl suspend
+{{ end -}}

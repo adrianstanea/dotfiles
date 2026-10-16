@@ -2,68 +2,49 @@
 
 My personal dotfiles configuration, inspired by ThePrimeagen's setup.
 
-## i3 Window Manager Setup
+## Setup with chezmoi
 
-### Quick Install (Ubuntu)
+Git must already be available to clone this repository. The repository's root `install` script installs chezmoi into `~/.local/bin` if needed, then initializes and applies this existing clone without prompting. i3 and Git source installation are both disabled by default.
 
-```bash
-# Git must already be installed to clone the repository; setup upgrades it afterward.
-git clone https://github.com/adrianstanea/dotfiles.git ~/dotfiles
-cd ~/dotfiles
+### VS Code Dev Containers
 
-# Run the setup script
-chmod +x setup-ubuntu.sh
-./setup-ubuntu.sh
-```
+In VS Code's Remote > Containers > Dotfiles settings, use:
 
-### Manual Installation
+- Repository: `https://github.com/adrianstanea/dotfiles.git`
+- Target Path: `~/dotfiles`
+- Install Command: `install`
 
-#### Install Dependencies
+The Dev Containers extension clones the repository and invokes `install`; the script reuses that checkout rather than cloning again. Feature choices already stored in chezmoi's local config are preserved. On first setup, the defaults keep optional features and their dependencies disabled.
 
-```bash
-sudo apt update
-sudo apt install -y \
-  i3 i3status i3lock dmenu feh xclip stow git \
-  build-essential autoconf libcurl4-openssl-dev libexpat1-dev \
-  libpcre2-dev libssl-dev zlib1g-dev gettext perl \
-  network-manager-gnome pulseaudio-utils xbacklight
-```
+For a manual setup, install chezmoi using its [official installation instructions](https://www.chezmoi.io/install/), then initialize this local checkout:
 
-#### Build and Install Latest Stable Git
+Review the proposed changes, then apply them:
 
 ```bash
-(
-  set -euo pipefail
-  git_repo="https://github.com/git/git.git"
-  latest_git_tag="$(git ls-remote --tags --refs "$git_repo" 'refs/tags/v*' |
-    awk -F '\t' '$2 ~ /^refs\/tags\/v[0-9]+\.[0-9]+\.[0-9]+$/ { sub(/^refs\/tags\//, "", $2); print $2 }' |
-    sort -V |
-    tail -n 1)"
-  if [ -z "$latest_git_tag" ]; then
-    echo "Could not find the latest stable Git release tag." >&2
-    exit 1
-  fi
-  build_dir="$(mktemp -d)"
-  trap 'rm -rf "$build_dir"' EXIT
-  git clone --depth 1 --branch "$latest_git_tag" "$git_repo" "$build_dir/git"
-  cd "$build_dir/git"
-  make configure
-  ./configure --prefix=/usr/local
-  make -j"$(nproc)" all
-  sudo make install
-)
+chezmoi --source "$HOME/dotfiles" init
+chezmoi diff
+chezmoi apply
 ```
 
-#### Install Dotfiles Using GNU Stow
+During interactive initialization, choose whether to enable the i3 desktop and/or build the latest stable Git release from source. Package dependencies are installed only for enabled features, and Stow is no longer required.
 
-```bash
-cd ~/dotfiles
-export DOTFILES="$HOME/dotfiles"
-export STOW_FOLDERS="i3"
-./install
-```
+To change feature selection later, edit `~/.config/chezmoi/chezmoi.toml` or run `chezmoi edit-config`, then run `chezmoi diff` followed by `chezmoi apply`. Disabling i3 removes its managed config files. Disabling Git source installation stops future builds. Neither action automatically removes installed system packages or `/usr/local/bin/git`; remove those manually if desired.
 
-Log out and select "i3" from your session manager.
+The package installer currently supports Ubuntu with APT. The Git source feature checks the latest stable upstream tag on each apply and builds only if `/usr/local/bin/git` is missing or out of date.
+
+### Guides and workflow
+
+- [Quick Start](https://www.chezmoi.io/quick-start/) for initialization, preview, and apply.
+- [Manage machine-to-machine differences](https://www.chezmoi.io/user-guide/manage-machine-to-machine-differences/) for templates and conditional targets.
+- [Use scripts to perform actions](https://www.chezmoi.io/user-guide/use-scripts-to-perform-actions/) for script ordering, idempotence, and change-triggered actions.
+- [Install packages declaratively](https://www.chezmoi.io/user-guide/advanced/install-packages-declaratively/) for feature-scoped package data and installation scripts.
+- [Migrate from another dotfile manager](https://www.chezmoi.io/migrating-from-another-dotfile-manager/) for symlink-based managers.
+
+Review `chezmoi diff` before applying changes. Use `chezmoi apply --dry-run --verbose` to preview actions; package scripts run only for enabled features, and disabling a feature does not remove its system packages.
+
+### Managed i3 configuration
+
+When enabled, chezmoi manages `~/.config/i3/config` and `~/.config/i3status/config`. The i3 config includes custom monitor and resolution bindings under `~/dotfiles/bin`; those scripts are not currently present in this repository.
 
 ### Key Bindings
 
@@ -102,7 +83,8 @@ Log out and select "i3" from your session manager.
 
 ## Configuration Files
 
-- **i3 config**: `~/.config/i3/config` (via `i3/.config/i3/config`)
+- **i3 config source**: `home/dot_config/i3/config.tmpl`
+- **i3status config source**: `home/dot_config/i3status/config.tmpl`
 
 ## TODO
 - Setup tmux: actually use sessions
