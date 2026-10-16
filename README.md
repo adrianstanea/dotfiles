@@ -44,7 +44,7 @@ Review `chezmoi diff` before applying changes. Use `chezmoi apply --dry-run --ve
 
 ### Managed Zsh configuration
 
-Chezmoi manages `~/.zshrc` and all of `~/.config/zsh/*.zsh` (`00-options.zsh` through `50-environments.zsh`), sourced in numeric order by the `~/.zshrc` entry point. One exception: `90-local.zsh` is intentionally **not** tracked here — it only loads machine-local secrets (`~/.zshrc.secrets`) and an untracked `local.zsh` override, so it must be created directly on each machine, never committed.
+Chezmoi manages `~/.zshrc` and all of `~/.config/zsh/*.zsh` (`00-options.zsh` through `60-github.zsh`), sourced in numeric order by the `~/.zshrc` entry point. One exception: `90-local.zsh` is intentionally **not** tracked here — it only loads machine-local secrets (`~/.zshrc.secrets`) and an untracked `local.zsh` override, so it must be created directly on each machine, never committed.
 
 Supporting tools referenced by this configuration are installed by dedicated, idempotent scripts (each skips itself if already installed):
 
@@ -58,6 +58,39 @@ Supporting tools referenced by this configuration are installed by dedicated, id
 ### Local settings scaffold
 
 `run_once_create-local-settings.sh` creates empty, comment-only templates at `~/.zshrc.secrets` (mode 600) and `~/.config/zsh/local.zsh` *only if they don't already exist* — it never overwrites or reads existing content, and the templates contain no real values. Fill in the actual secrets/overrides for each machine by hand after this runs; neither file is ever tracked by chezmoi.
+
+### GitHub accounts per directory
+
+The directory tree decides which GitHub account is used, for git (push/pull/clone credentials and commit identity) and for the `gh` CLI. No more `gh auth switch`. Accounts and rules live in `home/.chezmoidata/github.yaml`:
+
+- `dirs`: trees that belong to the account (longest match wins).
+- `owners`: repository owners that belong to the account, used outside those trees (e.g. `/workspaces/*` in containers).
+- `default`: everything else.
+
+Resolution order: explicit username in the URL (`https://adrianstanea@github.com/owner/repo.git`) > dir > owner > default.
+
+How it fits together:
+
+- `~/.gitconfig` (managed) routes `https://github.com` to `~/.local/bin/git-credential-gh-account` with `useHttpPath`, and resets inherited helpers so stale GitHub entries in `~/.git-credentials` are ignored (`store` still serves other hosts). `includeIf "gitdir:..."` and `includeIf "hasconfig:remote.*.url:..."` set `user.name`/`user.email` from `~/.config/git/accounts/<account>.gitconfig`.
+- `git-credential-gh-account` reads the rules from `~/.config/git/gh-accounts.tsv` (generated) and serves tokens from, in order: `$GH_TOKEN_<ACCOUNT>` (upper-case, non-alphanumerics as `_`, e.g. `GH_TOKEN_ADRIAN_STANEA_ADI`), gh's `~/.config/gh/hosts.yml`, then system-level credential helpers such as the VS Code Dev Containers forwarder. The keyring is skipped because a locked gnome-keyring blocks gh under WSL; set `GH_ACCOUNT_KEYRING=1` to try it too.
+- `~/.config/zsh/60-github.zsh` exports `GH_TOKEN` for the current tree on every `cd`, so `gh` follows the same rules.
+
+Commands:
+
+- `gh-accounts-login`: logs into every configured account gh doesn't know yet (`--insecure-storage`, so tokens land in `hosts.yml`). Pick the matching account in the browser and answer **No** to "Authenticate Git with your GitHub credentials?".
+- `gh-whoami`: shows the account, the rule that picked it, and the commit identity for the current directory.
+- `git credential-gh-account resolve|whoami [dir]`: the same from any shell.
+
+To add a tree, append it to an account's `dirs`. To add an account, add an entry to `github.yaml` plus a one-line stub `home/dot_config/git/accounts/<account>.gitconfig.tmpl` (copy an existing one and change the name), then run `chezmoi apply` and `gh-accounts-login`.
+
+A fresh `git clone` into a tree is covered by the dir rule on the current directory. Clone with a username in the URL to override it.
+
+Containers:
+
+- **VS Code Dev Containers**: set the user setting `dotfiles.repository` to `adrianstanea/dotfiles` (install command `install`), so the helper and zsh hook exist in every container. Project files don't need to know about this setup. If the project mounts `~/.config/gh` (e.g. DataX-RT's `compose.local.yml`), tokens come from the mounted `hosts.yml`; otherwise VS Code's forwarded host helper is asked for the resolved account. Host trees don't exist in the container, so owner rules and the default apply there.
+- **Plain `docker run`**: mount `~/.config/gh` or pass `-e GH_TOKEN_<ACCOUNT>` variables, and install these dotfiles in the image or at start.
+
+Machine-local Git settings (e.g. `safe.directory`) go in the untracked `~/.gitconfig.local`, which is included last.
 
 ### CodeFusion Studio
 

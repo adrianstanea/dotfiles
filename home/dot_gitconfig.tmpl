@@ -1,0 +1,59 @@
+# Managed by chezmoi. Machine-local settings (safe.directory, ...) go in ~/.gitconfig.local.
+{{- $default := .github.default }}
+{{- range .github.accounts }}
+{{- if eq .user $default }}
+
+[user]
+	name = {{ .name }}
+	email = {{ .email }}
+{{- end }}
+{{- end }}
+
+[core]
+	editor = code --wait
+	excludesFile = ~/.gitignore
+
+[credential]
+	helper = store
+
+# GitHub: the account is chosen per directory tree / repository owner by
+# git-credential-gh-account (tokens come from gh). The empty helper drops the
+# helpers above, so stale GitHub entries in ~/.git-credentials are never used.
+# $HOME keeps this working when a container includes this file as ~/.gitconfig-host.
+[credential "https://github.com"]
+	helper =
+	helper = "!f() { h=\"$HOME/.local/bin/git-credential-gh-account\"; [ -x \"$h\" ] && exec \"$h\" \"$@\"; }; f"
+	useHttpPath = true
+
+# Commit identity per account. Owner rules come first so directory rules win.
+{{- range .github.accounts }}
+{{- $user := .user }}
+{{- range .owners }}
+[includeIf "hasconfig:remote.*.url:https://github.com/{{ . }}/**"]
+	path = ~/.config/git/accounts/{{ $user }}.gitconfig
+[includeIf "hasconfig:remote.*.url:git@github.com:{{ . }}/**"]
+	path = ~/.config/git/accounts/{{ $user }}.gitconfig
+{{- end }}
+{{- end }}
+{{- range .github.accounts }}
+{{- $user := .user }}
+{{- range .dirs }}
+[includeIf "gitdir:{{ . }}"]
+	path = ~/.config/git/accounts/{{ $user }}.gitconfig
+{{- end }}
+{{- end }}
+
+[filter "lfs"]
+	process = git-lfs filter-process
+	required = true
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+[lfs]
+	concurrenttransfers = 3
+[lfs "customtransfer.xet"]
+	path = git-xet
+	args = transfer
+	concurrent = true
+
+[include]
+	path = ~/.gitconfig.local

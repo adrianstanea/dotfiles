@@ -3,3 +3,4 @@
 **/*.secrets
 .config/zsh/local.zsh
 .config/zsh/90-local.zsh
+.gitconfig.local

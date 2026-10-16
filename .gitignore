@@ -12,3 +12,4 @@ Thumbs.db
 *.secrets.*
 local.zsh
 90-local.zsh
+.gitconfig.local

@@ -3,6 +3,7 @@ set -euo pipefail
 
 secrets_file="$HOME/.zshrc.secrets"
 local_zsh_file="$HOME/.config/zsh/local.zsh"
+local_git_file="$HOME/.gitconfig.local"
 
 if [[ -e "$secrets_file" ]]; then
   echo "$secrets_file already exists; leaving it untouched."
@@ -27,5 +28,18 @@ else
   cat > "$local_zsh_file" <<'EOF'
 # Machine-local zsh overrides, sourced by ~/.config/zsh/90-local.zsh.
 # Never commit this file. Use it for settings specific to this machine only.
+EOF
+fi
+
+if [[ -e "$local_git_file" ]]; then
+  echo "$local_git_file already exists; leaving it untouched."
+else
+  echo "Creating template $local_git_file (fill in machine-local Git settings; never commit this file)."
+  cat > "$local_git_file" <<'EOF'
+# Machine-local Git settings, included last by ~/.gitconfig.
+# Never commit this file. Use it for settings specific to this machine, e.g.:
+#
+# [safe]
+# 	directory = /path/to/repository
 EOF
 fi

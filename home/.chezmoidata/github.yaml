@@ -1,0 +1,36 @@
+# GitHub account per directory tree, used by git (credentials + commit identity)
+# and the gh CLI. Resolution order: explicit username in the URL > longest
+# matching dir > repository owner > default. See README "GitHub accounts".
+#
+# To add a tree, append it to an account's dirs. To add an account, add an entry
+# here and a one-line stub in dot_config/git/accounts/, then log in with
+# gh-accounts-login.
+github:
+  default: Adrian-Stanea_adi
+  accounts:
+    - user: Adrian-Stanea_adi
+      name: Adrian-Stanea
+      email: Adrian.Stanea@analog.com
+      dirs:
+        - ~/git-repos/analogdevices/
+        - ~/git-repos/adi-innersource/
+      owners:
+        - analogdevicesinc
+        - adi-innersource
+        - Adrian-Stanea_adi
+    - user: Adrian-Stanea
+      name: Adrian-Stanea
+      email: Adrian.Stanea@analog.com
+      dirs:
+        - ~/git-repos/Adrian-Stanea/
+        - ~/git-repos/courses/
+        - ~/git-repos/microros-workspace/
+      owners:
+        - Adrian-Stanea
+    - user: adrianstanea
+      name: adrianstanea
+      email: adrianstanea1@gmail.com
+      dirs:
+        - ~/git-repos/adrianstanea/
+      owners:
+        - adrianstanea
