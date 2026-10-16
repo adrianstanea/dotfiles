@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Install this repository's pre-commit hooks (secret scanning with gitleaks) in
+# the dotfiles checkout, so leaks are blocked at commit time on every machine.
+set -euo pipefail
+
+repo={{ .chezmoi.workingTree | quote }}
+if [[ ! -f "$repo/.pre-commit-config.yaml" ]]; then
+  echo "No .pre-commit-config.yaml in $repo; skipping hook installation."
+  exit 0
+fi
+
+if ! command -v pre-commit >/dev/null 2>&1; then
+  if command -v uv >/dev/null 2>&1; then
+    uv tool install pre-commit
+    export PATH="$HOME/.local/bin:$PATH"
+  else
+    echo "pre-commit is not installed; install it (e.g. uv tool install pre-commit), then run: pre-commit install --install-hooks in $repo" >&2
+    exit 0
+  fi
+fi
+
+cd "$repo"
+pre-commit install --install-hooks

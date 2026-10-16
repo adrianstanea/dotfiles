@@ -1,0 +1,25 @@
+# Gitleaks configuration: the default ruleset plus credentials embedded in URLs,
+# e.g. https://oauth2:<token>@github.com or https://<token>@github.com, which
+# the default rules miss when the token has no recognizable prefix.
+title = "dotfiles"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "url-embedded-password"
+description = "Password or token in a URL (user:secret@host)"
+regex = '''[a-zA-Z][a-zA-Z0-9+.-]*://[^\s:/@'"]+:([^\s:/@'"<>${}]{16,})@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["://"]
+
+# Token used as the username (https://<token>@host). Plain usernames are short,
+# so only long values are flagged.
+[[rules]]
+id = "url-embedded-token"
+description = "Token used as the username in a URL (token@host)"
+regex = '''[a-zA-Z][a-zA-Z0-9+.-]*://([^\s:/@'"<>${}]{32,})@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'''
+secretGroup = 1
+entropy = 3.5
+keywords = ["://"]

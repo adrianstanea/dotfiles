@@ -92,6 +92,18 @@ Containers:
 
 Machine-local Git settings (e.g. `safe.directory`) go in the untracked `~/.gitconfig.local`, which is included last.
 
+### Secret scanning
+
+Leaks are blocked at three layers:
+
+1. **Commit**: a [pre-commit](https://pre-commit.com) hook runs [gitleaks](https://github.com/gitleaks/gitleaks) on staged changes and rejects the commit if it finds a secret. `run_once_after_install-repo-hooks.sh.tmpl` installs the hook in this checkout on every `chezmoi apply` machine (installing pre-commit with `uv` if needed). To install it by hand: `pre-commit install --install-hooks`.
+2. **CI**: `.github/workflows/secret-scan.yml` runs gitleaks and [TruffleHog](https://github.com/trufflesecurity/trufflehog) on every push and pull request, plus a weekly full-history rescan. This catches `git commit --no-verify`.
+3. **GitHub push protection**: enabled in the repository settings, so GitHub rejects pushes that contain known token formats.
+
+`.gitleaks.toml` extends the default rules with credentials embedded in URLs (`https://oauth2:<token>@host`, `https://<token>@host`), which the defaults miss when a token has no recognizable prefix. To scan the whole history manually: `gitleaks git --log-opts=--all --redact .`.
+
+Keep secrets out of the repo entirely: tokens belong in gh (`~/.config/gh/hosts.yml`), `~/.zshrc.secrets`, or `~/.gitconfig.local`, all of which are untracked.
+
 ### CodeFusion Studio
 
 When the `cfs` feature is enabled, `run_once_install-cfs.sh.tmpl` installs Analog Devices CodeFusion Studio (version pinned in `.chezmoidata/packages.yaml`) under `~/analog/cfs/<version>`. The installer requires a myAnalog account and EULA acceptance, so it cannot be downloaded automatically: the script expects `~/Downloads/CodeFusionStudio_<version>.run` to already be present (download it from the page linked in the script's own error message) and then runs the exact silent-install invocation recorded in that installer's own `InstallationLog.txt` (`install --am --al -c`).
