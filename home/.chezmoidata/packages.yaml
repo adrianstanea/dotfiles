@@ -20,3 +20,11 @@ packages:
       - zlib1g-dev
       - gettext
       - perl
+
+cfs:
+  version: "2.3.0"
+  downloadPage: "https://developer.analog.com/docs/codefusion-studio/latest/user-guide/installation/install-cfs/"
+
+texlive:
+  year: "2025"
+  scheme: "scheme-full"

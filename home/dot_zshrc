@@ -1,0 +1,6 @@
+# Zsh entry point. Configuration is organized under ~/.config/zsh.
+
+for zsh_config_file in "$HOME/.config/zsh"/*.zsh(N); do
+  source "$zsh_config_file"
+done
+unset zsh_config_file

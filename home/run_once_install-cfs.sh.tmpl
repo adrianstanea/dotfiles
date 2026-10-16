@@ -1,0 +1,43 @@
+{{- if .features.cfs }}
+#!/usr/bin/env bash
+set -euo pipefail
+
+cfs_version="{{ .packages.cfs.version }}"
+cfs_home="$HOME/analog/cfs/$cfs_version"
+installer_name="CodeFusionStudio_${cfs_version}.run"
+installer_path="$HOME/Downloads/$installer_name"
+
+if [[ -d "$cfs_home" ]]; then
+  echo "CodeFusion Studio $cfs_version already installed at $cfs_home."
+  exit 0
+fi
+
+if [[ ! -r "$installer_path" ]]; then
+  cat >&2 <<EOF
+CodeFusion Studio $cfs_version installer not found at:
+  $installer_path
+
+The installer requires a myAnalog account and EULA acceptance, so it
+cannot be downloaded automatically. Download it manually from:
+  {{ .packages.cfs.downloadPage }}
+
+then save it as "$installer_path" and re-run this script (or
+"chezmoi apply") to continue the silent install.
+EOF
+  exit 1
+fi
+
+chmod +x "$installer_path"
+
+# Command verified against this machine's own InstallationLog.txt from an
+# interactive command-line install: ./CodeFusionStudio_2.3.0.run install --am --al -c
+# --am: accept all installer messages, --al: accept the license, -c: run non-interactively.
+# No target directory flag is passed; the installer's own default already
+# resolves to $HOME/analog/cfs/<version>, which is what cfs_home expects.
+"$installer_path" install --am --al -c
+
+echo "CodeFusion Studio $cfs_version installed at $cfs_home."
+echo "Install the bundled VS Code extension from a VS Code terminal:"
+echo "  code --install-extension $cfs_home/VSCode/cfs-ide-${cfs_version}.vsix"
+echo "Activate the environment in a shell with: cfs-env"
+{{- end }}

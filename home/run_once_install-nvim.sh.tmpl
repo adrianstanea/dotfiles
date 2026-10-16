@@ -1,0 +1,27 @@
+{{- if eq .chezmoi.os "linux" }}
+#!/usr/bin/env bash
+set -euo pipefail
+
+install_dir=/opt/nvim-linux-x86_64
+
+if [[ -x "$install_dir/bin/nvim" ]]; then
+  echo "Neovim already installed at $install_dir."
+  exit 0
+fi
+
+if [[ "$(uname -m)" != "x86_64" ]]; then
+  echo "This script only supports x86_64; found $(uname -m)." >&2
+  exit 1
+fi
+
+download_dir="$(mktemp -d)"
+trap 'rm -rf "$download_dir"' EXIT
+
+echo "Downloading latest stable Neovim release..."
+curl -fsSL --output "$download_dir/nvim-linux-x86_64.tar.gz" \
+  https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
+
+sudo rm -rf "$install_dir"
+sudo tar -C /opt -xzf "$download_dir/nvim-linux-x86_64.tar.gz"
+echo "Installed $("$install_dir/bin/nvim" --version | head -n1)"
+{{- end }}

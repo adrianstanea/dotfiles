@@ -1,0 +1,58 @@
+{{- if .features.texlive }}
+#!/usr/bin/env bash
+set -euo pipefail
+
+texlive_year="{{ .packages.texlive.year }}"
+texlive_scheme="{{ .packages.texlive.scheme }}"
+texlive_dir="/usr/local/texlive/$texlive_year"
+
+if [[ -x "$texlive_dir/bin/x86_64-linux/tlmgr" ]]; then
+  echo "TeX Live $texlive_year already installed at $texlive_dir."
+  exit 0
+fi
+
+echo "Installing TeX Live $texlive_year ($texlive_scheme)."
+echo "This downloads several GB and can take a long time; it will NOT be interrupted automatically."
+
+download_dir="$(mktemp -d)"
+trap 'rm -rf "$download_dir"' EXIT
+cd "$download_dir"
+
+curl -fsSL --output install-tl.tar.gz https://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz
+tar -xzf install-tl.tar.gz
+installer_dir="$(find . -maxdepth 1 -type d -name 'install-tl-*')"
+
+profile_file="$download_dir/texlive.profile"
+cat > "$profile_file" <<EOF
+selected_scheme $texlive_scheme
+TEXDIR $texlive_dir
+TEXMFCONFIG ~/.texlive${texlive_year}/texmf-config
+TEXMFHOME ~/texmf
+TEXMFLOCAL /usr/local/texlive/texmf-local
+TEXMFSYSCONFIG $texlive_dir/texmf-config
+TEXMFSYSVAR $texlive_dir/texmf-var
+TEXMFVAR ~/.texlive${texlive_year}/texmf-var
+binary_x86_64-linux 1
+instopt_adjustpath 0
+instopt_adjustrepo 1
+instopt_letter 0
+instopt_portable 0
+instopt_write18_restricted 1
+tlpdbopt_autobackup 1
+tlpdbopt_backupdir tlpkg/backups
+tlpdbopt_create_formats 1
+tlpdbopt_desktop_integration 1
+tlpdbopt_file_assocs 1
+tlpdbopt_generate_updmap 0
+tlpdbopt_install_docfiles 1
+tlpdbopt_install_srcfiles 1
+tlpdbopt_post_code 1
+tlpdbopt_sys_bin /usr/local/bin
+tlpdbopt_sys_info /usr/local/share/info
+tlpdbopt_sys_man /usr/local/share/man
+tlpdbopt_w32_multi_user 1
+EOF
+
+sudo "$installer_dir/install-tl" -profile "$profile_file"
+echo "TeX Live $texlive_year installed at $texlive_dir."
+{{- end }}
