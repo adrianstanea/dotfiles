@@ -6,3 +6,9 @@
 # OS files
 .DS_Store
 Thumbs.db
+
+# Machine-local secrets and overrides (must never be committed)
+*.secrets
+*.secrets.*
+local.zsh
+90-local.zsh
