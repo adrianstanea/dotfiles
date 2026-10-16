@@ -15,9 +15,50 @@ sudo apt install -y \
     feh \
     xclip \
     stow \
+    git \
+    build-essential \
+    autoconf \
+    libcurl4-openssl-dev \
+    libexpat1-dev \
+    libpcre2-dev \
+    libssl-dev \
+    zlib1g-dev \
+    gettext \
+    perl \
     network-manager-gnome \
     pulseaudio-utils \
     xbacklight
+
+install_latest_git() (
+    set -euo pipefail
+
+    local git_repo latest_git_tag build_dir
+    git_repo="https://github.com/git/git.git"
+    latest_git_tag="$(git ls-remote --tags --refs "$git_repo" 'refs/tags/v*' |
+        awk -F '\t' '$2 ~ /^refs\/tags\/v[0-9]+\.[0-9]+\.[0-9]+$/ { sub(/^refs\/tags\//, "", $2); print $2 }' |
+        sort -V |
+        tail -n 1)"
+
+    if [ -z "$latest_git_tag" ]; then
+        echo "Could not find the latest stable Git release tag." >&2
+        exit 1
+    fi
+
+    build_dir="$(mktemp -d)"
+    trap 'rm -rf "$build_dir"' EXIT
+
+    echo "Building Git $latest_git_tag from source..."
+    git clone --depth 1 --branch "$latest_git_tag" "$git_repo" "$build_dir/git"
+    cd "$build_dir/git"
+    make configure
+    ./configure --prefix=/usr/local
+    make -j"$(nproc)" all
+    sudo make install
+)
+
+install_latest_git || exit 1
+hash -r
+echo "Installed $(git --version) at $(command -v git)"
 
 echo "i3 and dependencies installed successfully!"
 

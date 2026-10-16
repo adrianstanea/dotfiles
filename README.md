@@ -7,7 +7,7 @@ My personal dotfiles configuration, inspired by ThePrimeagen's setup.
 ### Quick Install (Ubuntu)
 
 ```bash
-# Clone the repository
+# Git must already be installed to clone the repository; setup upgrades it afterward.
 git clone https://github.com/adrianstanea/dotfiles.git ~/dotfiles
 cd ~/dotfiles
 
@@ -18,13 +18,44 @@ chmod +x setup-ubuntu.sh
 
 ### Manual Installation
 
-1. Install dependencies:
+#### Install Dependencies
+
 ```bash
 sudo apt update
-sudo apt install -y i3 i3status i3lock dmenu feh xclip stow network-manager-gnome pulseaudio-utils xbacklight
+sudo apt install -y \
+  i3 i3status i3lock dmenu feh xclip stow git \
+  build-essential autoconf libcurl4-openssl-dev libexpat1-dev \
+  libpcre2-dev libssl-dev zlib1g-dev gettext perl \
+  network-manager-gnome pulseaudio-utils xbacklight
 ```
 
-2. Install dotfiles using GNU Stow:
+#### Build and Install Latest Stable Git
+
+```bash
+(
+  set -euo pipefail
+  git_repo="https://github.com/git/git.git"
+  latest_git_tag="$(git ls-remote --tags --refs "$git_repo" 'refs/tags/v*' |
+    awk -F '\t' '$2 ~ /^refs\/tags\/v[0-9]+\.[0-9]+\.[0-9]+$/ { sub(/^refs\/tags\//, "", $2); print $2 }' |
+    sort -V |
+    tail -n 1)"
+  if [ -z "$latest_git_tag" ]; then
+    echo "Could not find the latest stable Git release tag." >&2
+    exit 1
+  fi
+  build_dir="$(mktemp -d)"
+  trap 'rm -rf "$build_dir"' EXIT
+  git clone --depth 1 --branch "$latest_git_tag" "$git_repo" "$build_dir/git"
+  cd "$build_dir/git"
+  make configure
+  ./configure --prefix=/usr/local
+  make -j"$(nproc)" all
+  sudo make install
+)
+```
+
+#### Install Dotfiles Using GNU Stow
+
 ```bash
 cd ~/dotfiles
 export DOTFILES="$HOME/dotfiles"
@@ -32,7 +63,7 @@ export STOW_FOLDERS="i3"
 ./install
 ```
 
-3. Log out and select "i3" from your session manager
+Log out and select "i3" from your session manager.
 
 ### Key Bindings
 
