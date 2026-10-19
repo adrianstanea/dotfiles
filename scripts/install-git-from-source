@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# Build and install the latest stable Git release from source.
+#
+# Standalone: needs only bash, git (or curl), make and sudo/root. It does not
+# require chezmoi or the rest of this repository.
+set -euo pipefail
+
+usage() {
+    cat <<USAGE
+Usage: ${0##*/} [options]
+
+Build and install the latest stable Git release from source.
+
+Options:
+  --prefix DIR     Install prefix (default: /usr/local)
+  --version X.Y.Z  Install this version instead of the latest stable release
+  --no-deps        Do not install build dependencies with the package manager
+  --force          Rebuild even if the requested version is already installed
+  -h, --help       Show this help
+
+Supported package managers for dependencies: apt, dnf, pacman, zypper.
+On other systems, install the build dependencies yourself and pass --no-deps.
+USAGE
+}
+
+prefix=/usr/local
+want_version=""
+install_deps=1
+force=0
+while (($#)); do
+    case "$1" in
+        --prefix) prefix="${2:?--prefix needs a value}"; shift 2 ;;
+        --version) want_version="${2:?--version needs a value}"; shift 2 ;;
+        --no-deps) install_deps=0; shift ;;
+        --force) force=1; shift ;;
+        -h | --help) usage; exit 0 ;;
+        *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
+if [[ "$(uname -s)" != "Linux" ]]; then
+    echo "Only Linux is supported." >&2
+    exit 1
+fi
+
+sudo=()
+if ((EUID != 0)); then
+    command -v sudo >/dev/null 2>&1 || { echo "Run as root or install sudo." >&2; exit 1; }
+    sudo=(sudo)
+fi
+
+install_build_deps() {
+    if command -v apt-get >/dev/null 2>&1; then
+        "${sudo[@]}" apt-get update
+        "${sudo[@]}" apt-get install --yes build-essential autoconf gettext perl \
+            libcurl4-openssl-dev libexpat1-dev libpcre2-dev libssl-dev zlib1g-dev
+    elif command -v dnf >/dev/null 2>&1; then
+        "${sudo[@]}" dnf install --assumeyes gcc make autoconf gettext perl \
+            libcurl-devel expat-devel pcre2-devel openssl-devel zlib-devel
+    elif command -v pacman >/dev/null 2>&1; then
+        "${sudo[@]}" pacman -S --needed --noconfirm base-devel gettext perl \
+            curl expat pcre2 openssl zlib
+    elif command -v zypper >/dev/null 2>&1; then
+        "${sudo[@]}" zypper --non-interactive install gcc make autoconf gettext-tools perl \
+            libcurl-devel libexpat-devel pcre2-devel libopenssl-devel zlib-devel
+    else
+        echo "No supported package manager (apt, dnf, pacman, zypper) found." >&2
+        echo "Install the Git build dependencies manually and rerun with --no-deps." >&2
+        exit 1
+    fi
+}
+
+if ((install_deps)); then
+    install_build_deps
+fi
+
+for tool in git make gcc; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "Required tool missing: $tool" >&2; exit 1; }
+done
+
+git_repo="https://github.com/git/git.git"
+if [[ -n "$want_version" ]]; then
+    tag="v${want_version#v}"
+else
+    tag="$(git ls-remote --tags --refs "$git_repo" 'refs/tags/v*' |
+        awk -F '\t' '$2 ~ /^refs\/tags\/v[0-9]+\.[0-9]+\.[0-9]+$/ { sub(/^refs\/tags\//, "", $2); print $2 }' |
+        sort -V | tail -n 1)"
+fi
+if [[ -z "$tag" ]]; then
+    echo "Could not determine the Git release tag." >&2
+    exit 1
+fi
+
+installed=""
+if [[ -x "$prefix/bin/git" ]]; then
+    installed="$("$prefix/bin/git" --version | awk '{ print $3 }')"
+fi
+if ((!force)) && [[ "$installed" == "${tag#v}" ]]; then
+    echo "Git $tag is already installed in $prefix."
+    exit 0
+fi
+
+build_dir="$(mktemp -d)"
+trap 'rm -rf "$build_dir"' EXIT
+
+echo "Building Git $tag from source (prefix: $prefix)..."
+git clone --quiet --depth 1 --branch "$tag" "$git_repo" "$build_dir/git"
+cd "$build_dir/git"
+make configure
+./configure --prefix="$prefix"
+make -j"$(nproc)" all
+"${sudo[@]}" make install
+
+hash -r
+echo "Installed $("$prefix/bin/git" --version) to $prefix/bin/git"
+case ":$PATH:" in
+    *":$prefix/bin:"*) ;;
+    *) echo "Note: $prefix/bin is not on your PATH." ;;
+esac

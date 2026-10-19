@@ -1,16 +1,3 @@
-packages:
-  apt:
-    gitSource:
-      - build-essential
-      - autoconf
-      - libcurl4-openssl-dev
-      - libexpat1-dev
-      - libpcre2-dev
-      - libssl-dev
-      - zlib1g-dev
-      - gettext
-      - perl
-
 cfs:
   version: "2.3.0"
   downloadPage: "https://developer.analog.com/docs/codefusion-studio/latest/user-guide/installation/install-cfs/"

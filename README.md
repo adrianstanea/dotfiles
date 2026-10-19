@@ -26,11 +26,23 @@ chezmoi diff
 chezmoi apply
 ```
 
-During interactive initialization, choose whether to build the latest stable Git release from source, and/or install Analog Devices CodeFusion Studio. Package dependencies are installed only for enabled features, and Stow is no longer required.
+During interactive initialization, choose whether to build the latest stable Git release from source, and/or install Analog Devices CodeFusion Studio. Stow is no longer required.
 
 To change feature selection later, edit `~/.config/chezmoi/chezmoi.toml` or run `chezmoi edit-config`, then run `chezmoi diff` followed by `chezmoi apply`. Disabling Git source installation stops future builds. It does not automatically remove installed system packages or `/usr/local/bin/git`; remove those manually if desired.
 
-The package installer currently supports Ubuntu with APT. The Git source feature checks the latest stable upstream tag on each apply and builds only if `/usr/local/bin/git` is missing or out of date.
+### Installing the latest Git from source
+
+`scripts/install-git-from-source` is standalone: it needs only bash, a working `git`, `sudo` (or root) and network access, not chezmoi or the rest of this repo.
+
+```bash
+git clone https://github.com/adrianstanea/dotfiles.git ~/dotfiles
+~/dotfiles/scripts/install-git-from-source              # latest stable into /usr/local
+~/dotfiles/scripts/install-git-from-source --version 2.50.1 --prefix ~/.local
+```
+
+It installs build dependencies with apt, dnf, pacman or zypper (skip with `--no-deps`), resolves the latest stable `vX.Y.Z` upstream tag, and builds only if `<prefix>/bin/git` is missing or a different version (override with `--force`). See `--help` for all options.
+
+With chezmoi, enabling `features.gitSource` runs the same script after each `chezmoi apply`.
 
 ### Guides and workflow
 

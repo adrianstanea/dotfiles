@@ -2,44 +2,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ ! -r /etc/os-release ]]; then
-  echo "Cannot identify the Linux distribution; Git source installation is supported only on Ubuntu." >&2
-  exit 1
-fi
-. /etc/os-release
-if [[ "${ID:-}" != "ubuntu" ]]; then
-  echo "Git source installation is currently supported only on Ubuntu (found ${ID:-unknown})." >&2
-  exit 1
-fi
-
-git_repo="https://github.com/git/git.git"
-latest_git_tag="$(git ls-remote --tags --refs "$git_repo" 'refs/tags/v*' |
-  awk -F '\t' '$2 ~ /^refs\/tags\/v[0-9]+\.[0-9]+\.[0-9]+$/ { sub(/^refs\/tags\//, "", $2); print $2 }' |
-  sort -V |
-  tail -n 1)"
-if [[ -z "$latest_git_tag" ]]; then
-  echo "Could not find the latest stable Git release tag." >&2
-  exit 1
-fi
-
-installed_version=""
-if [[ -x /usr/local/bin/git ]]; then
-  installed_version="$(/usr/local/bin/git --version | awk '{ print $3 }')"
-fi
-if [[ "$installed_version" == "${latest_git_tag#v}" ]]; then
-  echo "Git $latest_git_tag is already installed under /usr/local."
-  exit 0
-fi
-
-build_dir="$(mktemp -d)"
-trap 'rm -rf "$build_dir"' EXIT
-echo "Building Git $latest_git_tag from source..."
-git clone --depth 1 --branch "$latest_git_tag" "$git_repo" "$build_dir/git"
-cd "$build_dir/git"
-make configure
-./configure --prefix=/usr/local
-make -j"$(nproc)" all
-sudo make install
-hash -r
-echo "Installed $(/usr/local/bin/git --version)"
+exec "{{ .chezmoi.workingTree }}/scripts/install-git-from-source"
 {{- end }}
