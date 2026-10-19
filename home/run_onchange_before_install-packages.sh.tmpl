@@ -1,4 +1,4 @@
-{{- if or .features.i3 .features.gitSource }}
+{{- if .features.gitSource }}
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -13,9 +13,6 @@ if [[ "${ID:-}" != "ubuntu" ]]; then
 fi
 
 packages=()
-{{ if .features.i3 -}}
-packages+=( {{ range .packages.apt.i3 }}{{ . | quote }} {{ end }} )
-{{ end -}}
 {{ if .features.gitSource -}}
 packages+=( {{ range .packages.apt.gitSource }}{{ . | quote }} {{ end }} )
 {{ end -}}

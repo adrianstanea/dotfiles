@@ -1,15 +1,5 @@
 packages:
   apt:
-    i3:
-      - i3
-      - i3status
-      - i3lock
-      - dmenu
-      - feh
-      - xclip
-      - network-manager-gnome
-      - pulseaudio-utils
-      - xbacklight
     gitSource:
       - build-essential
       - autoconf

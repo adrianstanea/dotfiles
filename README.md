@@ -4,7 +4,7 @@ My personal dotfiles configuration, inspired by ThePrimeagen's setup.
 
 ## Setup with chezmoi
 
-Git must already be available to clone this repository. The repository's root `install` script installs chezmoi into `~/.local/bin` if needed, then initializes and applies this existing clone without prompting. i3 and Git source installation are both disabled by default.
+Git must already be available to clone this repository. The repository's root `install` script installs chezmoi into `~/.local/bin` if needed, then initializes and applies this existing clone without prompting. Git source installation is disabled by default.
 
 ### VS Code Dev Containers
 
@@ -26,9 +26,9 @@ chezmoi diff
 chezmoi apply
 ```
 
-During interactive initialization, choose whether to enable the i3 desktop, build the latest stable Git release from source, and/or install Analog Devices CodeFusion Studio. Package dependencies are installed only for enabled features, and Stow is no longer required.
+During interactive initialization, choose whether to build the latest stable Git release from source, and/or install Analog Devices CodeFusion Studio. Package dependencies are installed only for enabled features, and Stow is no longer required.
 
-To change feature selection later, edit `~/.config/chezmoi/chezmoi.toml` or run `chezmoi edit-config`, then run `chezmoi diff` followed by `chezmoi apply`. Disabling i3 removes its managed config files. Disabling Git source installation stops future builds. Neither action automatically removes installed system packages or `/usr/local/bin/git`; remove those manually if desired.
+To change feature selection later, edit `~/.config/chezmoi/chezmoi.toml` or run `chezmoi edit-config`, then run `chezmoi diff` followed by `chezmoi apply`. Disabling Git source installation stops future builds. It does not automatically remove installed system packages or `/usr/local/bin/git`; remove those manually if desired.
 
 The package installer currently supports Ubuntu with APT. The Git source feature checks the latest stable upstream tag on each apply and builds only if `/usr/local/bin/git` is missing or out of date.
 
@@ -111,50 +111,6 @@ When the `cfs` feature is enabled, `run_once_install-cfs.sh.tmpl` installs Analo
 The script does not install the bundled VS Code extension (`VSCode/cfs-ide-<version>.vsix`) automatically — install it from a VS Code terminal with `code --install-extension`, as the script's final output reminds you.
 
 `~/.config/zsh/50-environments.zsh` defines a `cfs-env` alias (`setup_CFS`) that lazily adds `cfsutil` and the bundled toolchains (cmake, git, openocd, python, dtc, gcc, ...) to `PATH` for the current shell, following the same pattern as the existing `zephyr-env` and `maxim-env` aliases. It does not run automatically; it is a lazy toggle to avoid permanently cluttering `PATH`.
-
-### Managed i3 configuration
-
-When enabled, chezmoi manages `~/.config/i3/config` and `~/.config/i3status/config`. The i3 config includes custom monitor and resolution bindings under `~/dotfiles/bin`; those scripts are not currently present in this repository.
-
-### Key Bindings
-
-**Modifier Key**: `Alt` (Mod1)
-
-#### Window Management
-- `Mod+Return` - Open terminal
-- `Mod+Shift+q` - Kill focused window
-- `Mod+d` - Application launcher (dmenu)
-- `Mod+h/j/k/l` - Focus left/down/up/right (vim keys)
-- `Mod+Shift+h/j/k/l` - Move window left/down/up/right
-
-#### Layouts
-- `Mod+z` - Split horizontally
-- `Mod+v` - Split vertically
-- `Mod+f` - Fullscreen toggle
-- `Mod+s` - Stacking layout
-- `Mod+w` - Tabbed layout
-- `Mod+e` - Toggle split layout
-
-#### Workspaces
-- `Mod+1-9,0` - Switch to workspace 1-10
-- `Mod+Shift+1-9,0` - Move window to workspace 1-10
-
-#### System
-- `Mod+Shift+c` - Reload i3 config
-- `Mod+Shift+r` - Restart i3
-- `Mod+Shift+e` - Exit i3
-- `Mod+r` - Resize mode (use h/j/k/l or arrows, then Esc)
-
-#### Media Keys
-- `XF86AudioRaiseVolume` - Increase volume
-- `XF86AudioLowerVolume` - Decrease volume
-- `XF86AudioMute` - Mute/unmute
-- `XF86MonBrightnessUp/Down` - Adjust screen brightness
-
-## Configuration Files
-
-- **i3 config source**: `home/dot_config/i3/config.tmpl`
-- **i3status config source**: `home/dot_config/i3status/config.tmpl`
 
 ## TODO
 - Setup tmux: actually use sessions

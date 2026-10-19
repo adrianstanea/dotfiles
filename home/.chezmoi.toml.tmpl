@@ -1,7 +1,6 @@
 sourceDir = {{ .chezmoi.sourceDir | quote }}
 
 [data.features]
-i3 = {{ promptBoolOnce . "features.i3" "Enable the i3 desktop feature?" false }}
 gitSource = {{ promptBoolOnce . "features.gitSource" "Build and install the latest stable Git from source?" false }}
 cfs = {{ promptBoolOnce . "features.cfs" "Install Analog Devices CodeFusion Studio?" false }}
 texlive = {{ promptBoolOnce . "features.texlive" "Install TeX Live 2025 (scheme-full, several GB, takes a long time)?" false }}
