@@ -40,7 +40,7 @@ git clone https://github.com/adrianstanea/dotfiles.git ~/dotfiles
 ~/dotfiles/scripts/install-git-from-source --version 2.50.1 --prefix ~/.local
 ```
 
-It installs build dependencies with apt, dnf, pacman or zypper (skip with `--no-deps`), resolves the latest stable `vX.Y.Z` upstream tag, and builds only if `<prefix>/bin/git` is missing or a different version (override with `--force`). See `--help` for all options.
+It installs build dependencies with apt, dnf, pacman or zypper (skip with `--no-deps`), resolves the latest stable `vX.Y.Z` upstream tag, and builds only if `<prefix>/bin/git` is missing or a different version (override with `--force`). If `cargo` is missing it installs Rust with the official rustup installer (Git builds Rust code by default); pass `--no-rust` to skip that. See `--help` for all options.
 
 With chezmoi, enabling `features.gitSource` runs the same script after each `chezmoi apply`.
 

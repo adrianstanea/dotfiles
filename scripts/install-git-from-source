@@ -15,12 +15,12 @@ Options:
   --prefix DIR     Install prefix (default: /usr/local)
   --version X.Y.Z  Install this version instead of the latest stable release
   --no-deps        Do not install build dependencies with the package manager
-  --no-rust        Build without Rust (NO_RUST=1); skips the cargo requirement
+  --no-rust        Build without Rust (NO_RUST=1); skips the rustup/cargo requirement
   --force          Rebuild even if the requested version is already installed
   -h, --help       Show this help
 
 Supported package managers for dependencies: apt, dnf, pacman, zypper.
-Rust (cargo) is required unless --no-rust is given. On other systems, install the build dependencies yourself and pass --no-deps.
+Rust is required unless --no-rust is given; it is installed with rustup if cargo is missing. On other systems, install the build dependencies yourself and pass --no-deps.
 USAGE
 }
 
@@ -53,24 +53,19 @@ if ((EUID != 0)); then
 fi
 
 install_build_deps() {
-    # Git builds Rust code by default (mandatory from Git 3.0), which needs cargo.
-    local rust=()
-    if ((use_rust)) && ! command -v cargo >/dev/null 2>&1; then
-        rust=("$1")
-    fi
     if command -v apt-get >/dev/null 2>&1; then
         "${sudo[@]}" apt-get update
-        "${sudo[@]}" apt-get install --yes build-essential autoconf gettext perl \
-            libcurl4-openssl-dev libexpat1-dev libpcre2-dev libssl-dev zlib1g-dev "${rust[@]}"
+        "${sudo[@]}" apt-get install --yes build-essential curl autoconf gettext perl \
+            libcurl4-openssl-dev libexpat1-dev libpcre2-dev libssl-dev zlib1g-dev
     elif command -v dnf >/dev/null 2>&1; then
-        "${sudo[@]}" dnf install --assumeyes gcc make autoconf gettext perl \
-            libcurl-devel expat-devel pcre2-devel openssl-devel zlib-devel "${rust[@]}"
+        "${sudo[@]}" dnf install --assumeyes gcc make curl autoconf gettext perl \
+            libcurl-devel expat-devel pcre2-devel openssl-devel zlib-devel
     elif command -v pacman >/dev/null 2>&1; then
         "${sudo[@]}" pacman -S --needed --noconfirm base-devel gettext perl \
-            curl expat pcre2 openssl zlib "${rust[@]}"
+            curl expat pcre2 openssl zlib
     elif command -v zypper >/dev/null 2>&1; then
-        "${sudo[@]}" zypper --non-interactive install gcc make autoconf gettext-tools perl \
-            libcurl-devel libexpat-devel pcre2-devel libopenssl-devel zlib-devel "${rust[@]}"
+        "${sudo[@]}" zypper --non-interactive install gcc make curl autoconf gettext-tools perl \
+            libcurl-devel libexpat-devel pcre2-devel libopenssl-devel zlib-devel
     else
         echo "No supported package manager (apt, dnf, pacman, zypper) found." >&2
         echo "Install the Git build dependencies manually and rerun with --no-deps." >&2
@@ -79,11 +74,23 @@ install_build_deps() {
 }
 
 if ((install_deps)); then
-    # Package name that provides cargo differs per distro; only pacman differs.
-    if command -v pacman >/dev/null 2>&1; then
-        install_build_deps rust
-    else
-        install_build_deps cargo
+    install_build_deps
+fi
+
+# Git builds Rust code by default (mandatory from Git 3.0), which needs cargo.
+# Use the official rustup installer rather than an often-outdated distro package.
+if ((use_rust)); then
+    # shellcheck disable=SC1091
+    [[ -r "$HOME/.cargo/env" ]] && . "$HOME/.cargo/env"
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "cargo not found; installing Rust with rustup..."
+        rustup_dir="$(mktemp -d)"
+        curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            https://sh.rustup.rs --output "$rustup_dir/rustup-init.sh"
+        sh "$rustup_dir/rustup-init.sh" -y --profile minimal --no-modify-path
+        rm -rf "$rustup_dir"
+        # shellcheck disable=SC1091
+        . "$HOME/.cargo/env"
     fi
 fi
 
