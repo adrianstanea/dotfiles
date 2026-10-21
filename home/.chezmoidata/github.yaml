@@ -12,7 +12,6 @@ github:
       name: Adrian-Stanea
       email: Adrian.Stanea@analog.com
       dirs:
-        - ~/git-repos/analogdevices/
         - ~/git-repos/adi-innersource/
       owners:
         - analogdevicesinc
@@ -23,6 +22,7 @@ github:
       email: Adrian.Stanea@analog.com
       dirs:
         - ~/git-repos/Adrian-Stanea/
+        - ~/git-repos/analogdevices/
         - ~/git-repos/courses/
         - ~/git-repos/microros-workspace/
       owners:
