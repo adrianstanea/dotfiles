@@ -116,6 +116,30 @@ Leaks are blocked at three layers:
 
 Keep secrets out of the repo entirely: tokens belong in gh (`~/.config/gh/hosts.yml`), `~/.zshrc.secrets`, or `~/.gitconfig.local`, all of which are untracked.
 
+### Reclaiming disk space (WSL2)
+
+`wsl-cleanup` (installed to `~/.local/bin` by chezmoi, source in `home/dot_local/bin/executable_wsl-cleanup`) automates the periodic disk cleanup of a WSL2 distro. It is a dry run unless you pass `--apply`, never runs `sudo`, and never touches Docker data.
+
+```bash
+wsl-cleanup                      # report: free space + dry run of the safe tasks
+wsl-cleanup builds venvs         # pick tasks; add --apply to delete
+wsl-cleanup all --apply          # builds + venvs + caches + vscode
+wsl-cleanup git-trim --repo ~/git-repos/foo --apply
+wsl-cleanup top                  # largest dirs in ~ (slow)
+wsl-cleanup system               # prints the sudo commands (apt, journal, chown)
+wsl-cleanup compact              # prints the fstrim + Optimize-VHD steps
+```
+
+| Task | What it removes |
+|---|---|
+| `builds` | `build`, `_build`, `install`, `log`, `target` dirs that carry a build-system marker (`CMakeCache.txt`, `COLCON_IGNORE`, `CACHEDIR.TAG`, ...) and contain no git-tracked files |
+| `venvs` | `.venv`/`venv` dirs (anything with a `pyvenv.cfg`) |
+| `caches` | `.mypy_cache`, `.ruff_cache`, `.pytest_cache`, VS Code IntelliSense databases, and `~/.cache` entries for pip, uv, ccache, pre-commit, puppeteer, cpptools, node-gyp and the npm cache |
+| `vscode` | Older versions of VS Code server extensions, the VSIX cache and Copilot's local code indexes |
+| `git-trim` | Rewrites `--repo` clones to a single commit. Refuses repos with unpushed commits, stashes, extra worktrees or a detached HEAD |
+
+Scanned directories default to `~/git-repos ~/code ~/tmp ~/ros2_ws ~/.claude`; override with `--root DIR`. Deleting files only frees space inside the distro: run `wsl-cleanup compact` afterwards to shrink the VHDX on Windows.
+
 ### CodeFusion Studio
 
 When the `cfs` feature is enabled, `run_once_install-cfs.sh.tmpl` installs Analog Devices CodeFusion Studio (version pinned in `.chezmoidata/packages.yaml`) under `~/analog/cfs/<version>`. The installer requires a myAnalog account and EULA acceptance, so it cannot be downloaded automatically: the script expects `~/Downloads/CodeFusionStudio_<version>.run` to already be present (download it from the page linked in the script's own error message) and then runs the exact silent-install invocation recorded in that installer's own `InstallationLog.txt` (`install --am --al -c`).

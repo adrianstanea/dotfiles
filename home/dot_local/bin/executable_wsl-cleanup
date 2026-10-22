@@ -1,0 +1,352 @@
+#!/usr/bin/env bash
+# Reclaim disk space in a WSL2 distro: stale build output, virtualenvs, tool
+# caches, old VS Code extensions and git history.
+#
+# Standalone: needs only bash, find, du, and optionally git and python3.
+# Every task is a dry run unless --apply is given. It never runs sudo and never
+# touches Docker data (Docker Desktop keeps that in its own VHDX).
+set -euo pipefail
+
+usage() {
+    cat <<USAGE
+Usage: ${0##*/} [options] [task...]
+
+Reclaim disk space in a WSL2 distro. Without --apply nothing is deleted: each
+task only lists what it would remove and how much space that frees.
+
+Tasks (default: report):
+  report     Free space, then a dry run of builds, venvs, caches and vscode
+  top        Largest directories in ~ (slow: walks the whole home)
+  builds    Untracked CMake/colcon/cargo output (build, _build, install, log, target)
+  venvs      Python virtualenvs (.venv, venv); recreate them with uv or pip
+  caches     mypy/ruff/pytest caches, IntelliSense databases, and user caches
+  vscode     Old VS Code server extension versions, VSIX cache, Copilot indexes
+  git-trim   Cut the repos given with --repo down to one commit (history is
+             fetched back with 'git fetch --unshallow')
+  system     Print the sudo commands for apt, the journal and root-owned files
+  compact    Print the steps that shrink the VHDX file on Windows
+  all        builds + venvs + caches + vscode
+
+Options:
+  --apply      Delete for real (default is a dry run)
+  --root DIR   Directory to scan for builds, venvs and caches; repeatable
+               (default: ~/git-repos ~/code ~/tmp ~/ros2_ws ~/.claude)
+  --repo DIR   Repository for git-trim; repeatable
+  --all-items  List every item instead of the 15 largest
+  -h, --help   Show this help
+
+Safety:
+  builds   only directories with a build-system marker (CMakeCache.txt,
+           COLCON_IGNORE, CACHEDIR.TAG, ...) and no git-tracked files.
+  git-trim refuses repos with unpushed commits, stashes, extra worktrees, a
+           detached HEAD, or a HEAD commit the remote cannot serve. Uncommitted
+           changes are left alone.
+
+Deleting files frees space inside the distro only. Run '${0##*/} compact'
+afterwards to shrink the VHDX on Windows.
+USAGE
+}
+
+APPLY=0
+SHOW=15
+TOTAL_KB=0
+roots=()
+repos=()
+tasks=()
+
+# Tool caches under \$HOME that are rebuilt on demand.
+USER_CACHES=(
+    .cache/pip .cache/uv .cache/ccache .cache/pre-commit .cache/puppeteer
+    .cache/vscode-cpptools .cache/node-gyp .npm/_cacache
+)
+VSCODE_SERVER="$HOME/.vscode-server"
+
+warn() { printf 'warning: %s\n' "$*" >&2; }
+human() { numfmt --to=iec --suffix=B "$(($1 * 1024))"; }
+tilde() { printf '%s' "${1/#"$HOME"/\~}"; }
+
+# reclaim LABEL: read NUL-separated paths on stdin, list them, delete with --apply.
+reclaim() {
+    local label=$1 path kb sum=0 i
+    local -a paths=() sizes=()
+    while IFS= read -r -d '' path; do
+        kb=$(du -sk -- "$path" 2>/dev/null | cut -f1 || true)
+        paths+=("$path")
+        sizes+=("${kb:-0}")
+    done
+    if ((${#paths[@]} == 0)); then
+        printf '%s: nothing to clean\n' "$label"
+        return 0
+    fi
+    for kb in "${sizes[@]}"; do sum=$((sum + kb)); done
+    printf '%s: %d item(s), %s\n' "$label" "${#paths[@]}" "$(human "$sum")"
+    while read -r i; do
+        printf '  %9s  %s\n' "$(human "${sizes[i]}")" "$(tilde "${paths[i]}")"
+    done < <(for i in "${!sizes[@]}"; do printf '%s %s\n' "${sizes[i]}" "$i"; done |
+        sort -rn | head -n "$SHOW" | cut -d' ' -f2)
+    if ((${#paths[@]} > SHOW)); then
+        printf '  ... and %d more (--all-items lists them)\n' "$((${#paths[@]} - SHOW))"
+    fi
+    if ((APPLY)); then
+        for path in "${paths[@]}"; do
+            rm -rf -- "$path" 2>/dev/null ||
+                warn "could not remove $path (root-owned? see '${0##*/} system')"
+        done
+    fi
+    TOTAL_KB=$((TOTAL_KB + sum))
+}
+
+existing_roots() {
+    local r
+    for r in "${roots[@]}"; do
+        if [[ -d $r ]]; then printf '%s\0' "$r"; fi
+    done
+}
+
+# Calls: scan_find ARGS... with the existing roots prepended.
+scan_find() {
+    local -a dirs=()
+    local r
+    while IFS= read -r -d '' r; do dirs+=("$r"); done < <(existing_roots)
+    if ((${#dirs[@]} == 0)); then return 0; fi
+    find "${dirs[@]}" -xdev "$@"
+}
+
+has_tracked_files() {
+    [[ -n $(git -C "$1" ls-files -- . 2>/dev/null | head -n 1) ]]
+}
+
+is_build_output() {
+    local d=$1
+    case ${d##*/} in
+        build | _build)
+            [[ -e $d/CMakeCache.txt || -e $d/.ninja_log || -e $d/CTestTestfile.cmake ||
+                -e $d/COLCON_IGNORE || -d $d/CMakeFiles ]] && return 0
+            # Wrapper dirs holding several builds (e.g. cmake-tests-*/): look one level down.
+            [[ -n $(find "$d" -mindepth 2 -maxdepth 3 -name CMakeCache.txt -print -quit 2>/dev/null) ]] && return 0
+            # Otherwise trust .gitignore: ignored and nothing tracked inside.
+            git -C "${d%/*}" check-ignore -q "${d##*/}" 2>/dev/null
+            ;;
+        install) [[ -e $d/setup.bash || -e $d/.colcon_install_layout || -e $d/COLCON_IGNORE ]] ;;
+        log) [[ -e $d/COLCON_IGNORE || -e $d/latest_build ]] ;;
+        target) [[ -e $d/CACHEDIR.TAG || -e $d/.rustc_info.json ]] ;;
+        *) return 1 ;;
+    esac
+}
+
+scan_builds() {
+    local d
+    while IFS= read -r -d '' d; do
+        if is_build_output "$d" && ! has_tracked_files "$d"; then printf '%s\0' "$d"; fi
+    done < <(scan_find \( -name .git -o -name node_modules -o -name .venv \) -prune -o \
+        -type d \( -name build -o -name _build -o -name install -o -name log -o -name target \) \
+        -print0 -prune)
+}
+
+scan_venvs() {
+    scan_find \( -name .git -o -name node_modules \) -prune -o \
+        -type d \( -name .venv -o -name venv \) -exec test -e '{}/pyvenv.cfg' \; -print0 -prune
+}
+
+scan_caches() {
+    local c
+    for c in "${USER_CACHES[@]}"; do
+        if [[ -e $HOME/$c ]]; then printf '%s\0' "$HOME/$c"; fi
+    done
+    scan_find \( -name .git -o -name node_modules \) -prune -o \
+        \( -type d \( -name .mypy_cache -o -name .ruff_cache -o -name .pytest_cache \
+        -o -path '*/.vscode/ipch' \) -print0 -prune \) -o \
+        \( -type f -path '*/.vscode/browse.vc*' -print0 \)
+}
+
+# Older versions of the same extension; VS Code only loads the newest.
+scan_old_extensions() {
+    local dir=$VSCODE_SERVER/extensions
+    if [[ ! -d $dir ]] || ! command -v python3 >/dev/null; then return 0; fi
+    python3 -I - "$dir" <<'PY'
+import os
+import re
+import sys
+
+base = sys.argv[1]
+pattern = re.compile(
+    r"^(?P<id>.+?)-(?P<ver>\d+(?:\.\d+)+)(?:-(?P<platform>[a-z0-9]+-[a-z0-9_]+))?$"
+)
+groups = {}
+for name in os.listdir(base):
+    match = pattern.match(name)
+    if match and os.path.isdir(os.path.join(base, name)):
+        version = tuple(int(part) for part in match["ver"].split("."))
+        groups.setdefault(match["id"], []).append(
+            (version, match["platform"] is not None, name)
+        )
+for entries in groups.values():
+    entries.sort()
+    for _, _, name in entries[:-1]:
+        sys.stdout.buffer.write(os.path.join(base, name).encode() + b"\0")
+PY
+}
+
+scan_vscode_data() {
+    if [[ -d $VSCODE_SERVER/data/CachedExtensionVSIXs ]]; then
+        printf '%s\0' "$VSCODE_SERVER/data/CachedExtensionVSIXs"
+    fi
+    if [[ -d $VSCODE_SERVER/data/User/workspaceStorage ]]; then
+        find "$VSCODE_SERVER/data/User/workspaceStorage" -xdev -type f \
+            -path '*/GitHub.copilot-chat/local-index.*.db' -print0
+    fi
+}
+
+task_builds() { reclaim "Build output" < <(scan_builds); }
+task_venvs() { reclaim "Python virtualenvs" < <(scan_venvs); }
+task_caches() { reclaim "Caches" < <(scan_caches); }
+task_vscode() {
+    reclaim "Old VS Code extension versions" < <(scan_old_extensions)
+    reclaim "VS Code server data" < <(scan_vscode_data)
+}
+
+trim_repo() {
+    local repo=$1 top before branch head remote merge short
+    if ! top=$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null) ||
+        [[ $top != "$(cd "$repo" && pwd -P)" ]]; then
+        warn "$repo: not the top level of a git repository"
+        return 0
+    fi
+    before=$(du -sh "$top/.git" | cut -f1)
+    branch=$(git -C "$top" branch --show-current)
+    if [[ -z $branch ]]; then warn "$repo: detached HEAD, skipping"; return 0; fi
+    if [[ -n $(git -C "$top" stash list) ]]; then warn "$repo: has stashes, skipping"; return 0; fi
+    if (($(git -C "$top" worktree list | wc -l) > 1)); then
+        warn "$repo: has extra worktrees, skipping"
+        return 0
+    fi
+    if [[ -n $(git -C "$top" rev-list --branches --not --remotes | head -n 1) ]]; then
+        warn "$repo: has commits that exist on no remote, skipping"
+        return 0
+    fi
+    remote=$(git -C "$top" config "branch.$branch.remote" || git -C "$top" remote | head -n 1)
+    merge=$(git -C "$top" config "branch.$branch.merge" || echo "refs/heads/$branch")
+    short=${merge#refs/heads/}
+    head=$(git -C "$top" rev-parse HEAD)
+    if [[ -z $remote ]]; then warn "$repo: no remote, skipping"; return 0; fi
+    if ! ((APPLY)); then
+        printf 'Git history: %s (.git %s) can be trimmed to one commit\n' "$(tilde "$top")" "$before"
+        return 0
+    fi
+    if ! GIT_TERMINAL_PROMPT=0 git -C "$top" fetch -q --depth=1 --no-tags "$remote" "$head" 2>/dev/null; then
+        warn "$repo: $remote cannot serve $head, skipping"
+        return 0
+    fi
+    git -C "$top" for-each-ref --format='delete %(refname)' |
+        grep -vxE "delete refs/heads/$branch" | git -C "$top" update-ref --no-deref --stdin
+    git -C "$top" update-ref "refs/remotes/$remote/$short" "$head"
+    git -C "$top" config "remote.$remote.fetch" "+$merge:refs/remotes/$remote/$short"
+    git -C "$top" config "remote.$remote.tagOpt" --no-tags
+    git -C "$top" reflog expire --expire=now --all
+    git -C "$top" gc -q --prune=now
+    printf 'Git history: %s .git %s -> %s\n' "$(tilde "$top")" "$before" "$(du -sh "$top/.git" | cut -f1)"
+}
+
+task_git_trim() {
+    local repo
+    if ((${#repos[@]} == 0)); then
+        warn "git-trim needs at least one --repo DIR"
+        return 0
+    fi
+    for repo in "${repos[@]}"; do trim_repo "$repo"; done
+}
+
+task_system() {
+    local owned
+    owned=$(find "$HOME" -xdev ! -user "$(id -un)" 2>/dev/null | wc -l)
+    cat <<SYS
+System cleanup needs sudo, so run these yourself:
+  sudo apt-get clean && sudo apt-get autoremove --purge
+  sudo journalctl --vacuum-size=100M
+  sudo rm -f /var/crash/*
+SYS
+    if ((owned > 0)); then
+        printf '\n%d file(s) under ~ are owned by root (sudo colcon build, Docker, ...).\n' "$owned"
+        printf 'Take them over so they can be cleaned too:\n  sudo chown -R %s: %q\n' "$(id -un)" "$HOME"
+    fi
+}
+
+task_compact() {
+    local vhdx=""
+    if command -v powershell.exe >/dev/null && [[ -n ${WSL_DISTRO_NAME:-} ]]; then
+        vhdx=$(powershell.exe -NoProfile -Command "Get-ChildItem HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss | ForEach-Object { \$p = Get-ItemProperty \$_.PSPath; if (\$p.DistributionName -eq '$WSL_DISTRO_NAME') { Join-Path \$p.BasePath 'ext4.vhdx' } }" 2>/dev/null |
+            tr -d '\r' | sed 's/^\\\\?\\//' | head -n 1 || true)
+    fi
+    cat <<COMPACT
+Deleting files frees space inside the distro; the VHDX only shrinks when compacted.
+
+In this distro:
+  sudo fstrim -av
+
+Then in an elevated PowerShell on Windows:
+  wsl --shutdown
+  Optimize-VHD -Path "${vhdx:-<path>\\ext4.vhdx}" -Mode Full
+
+Without Hyper-V tools, use diskpart instead:
+  diskpart
+  select vdisk file="${vhdx:-<path>\\ext4.vhdx}"
+  attach vdisk readonly
+  compact vdisk
+  detach vdisk
+COMPACT
+}
+
+task_top() {
+    printf 'Largest directories in ~ (slow on big homes):\n'
+    du -xh --max-depth=1 "$HOME" 2>/dev/null | sort -rh | head -n 15 | sed 's/^/  /'
+}
+
+task_report() {
+    df -h "$HOME" | sed -n '1,2p'
+    printf '\n'
+    task_builds
+    task_venvs
+    task_caches
+    task_vscode
+}
+
+while (($#)); do
+    case "$1" in
+        --apply) APPLY=1; shift ;;
+        --root) roots+=("${2:?--root needs a value}"); shift 2 ;;
+        --repo) repos+=("${2:?--repo needs a value}"); shift 2 ;;
+        --all-items) SHOW=1000000; shift ;;
+        -h | --help) usage; exit 0 ;;
+        -*) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+        *) tasks+=("$1"); shift ;;
+    esac
+done
+if ((${#roots[@]} == 0)); then
+    roots=("$HOME/git-repos" "$HOME/code" "$HOME/tmp" "$HOME/ros2_ws" "$HOME/.claude")
+fi
+if ((${#tasks[@]} == 0)); then tasks=(report); fi
+
+for task in "${tasks[@]}"; do
+    case "$task" in
+        report) task_report ;;
+        top) task_top ;;
+        builds) task_builds ;;
+        venvs) task_venvs ;;
+        caches) task_caches ;;
+        vscode) task_vscode ;;
+        git-trim) task_git_trim ;;
+        system) task_system ;;
+        compact) task_compact ;;
+        all) task_builds; task_venvs; task_caches; task_vscode ;;
+        *) echo "Unknown task: $task" >&2; usage >&2; exit 2 ;;
+    esac
+    printf '\n'
+done
+
+if ((TOTAL_KB > 0)); then
+    if ((APPLY)); then
+        printf 'Freed about %s. Run "%s compact" to shrink the VHDX on Windows.\n' "$(human "$TOTAL_KB")" "${0##*/}"
+    else
+        printf 'Dry run: about %s reclaimable. Re-run with --apply to delete.\n' "$(human "$TOTAL_KB")"
+    fi
+fi
