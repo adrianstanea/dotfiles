@@ -5,7 +5,13 @@ zsh_add_path "$BUN_INSTALL/bin"
 
 zsh_load_nvm() {
   [[ -n ${NVM_LOADED:-} ]] && return 0
-  export NVM_DIR=${NVM_DIR:-$HOME/.nvm}
+  if [[ -z ${NVM_DIR:-} ]]; then
+    if [[ -n ${XDG_CONFIG_HOME:-} ]]; then
+      export NVM_DIR="$XDG_CONFIG_HOME/nvm"
+    else
+      export NVM_DIR="$HOME/.nvm"
+    fi
+  fi
   if [[ -r $NVM_DIR/nvm.sh ]]; then
     source "$NVM_DIR/nvm.sh"
     export NVM_LOADED=1
