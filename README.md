@@ -26,9 +26,9 @@ chezmoi diff
 chezmoi apply
 ```
 
-During interactive initialization, choose whether to build the latest stable Git release from source, and/or install Analog Devices CodeFusion Studio. Stow is no longer required.
+During interactive initialization, choose whether to build the latest stable Git release from source, install Analog Devices CodeFusion Studio, install Ghostty/Zsh/unzip, or enable Ghostty's graphical-session systemd service. Stow is no longer required.
 
-To change feature selection later, edit `~/.config/chezmoi/chezmoi.toml` or run `chezmoi edit-config`, then run `chezmoi diff` followed by `chezmoi apply`. Disabling Git source installation stops future builds. It does not automatically remove installed system packages or `/usr/local/bin/git`; remove those manually if desired.
+To change feature selection later, edit `~/.config/chezmoi/chezmoi.toml` or run `chezmoi edit-config`, then run `chezmoi diff` followed by `chezmoi apply`. Package installation and Ghostty service activation are opt-in. The Ghostty, Zsh, and unzip package features currently support Arch Linux with pacman only. Disabling a package feature does not uninstall its package; disabling Ghostty service activation does not disable an already-enabled service. Disabling Git source installation stops future builds but does not remove installed system packages or `/usr/local/bin/git`.
 
 ### Installing the latest Git from source
 
@@ -66,6 +66,10 @@ Supporting tools referenced by this configuration are installed by dedicated, id
 - `run_once_install-bun.sh` — installs bun via its official install script.
 - `run_once_install-nvim.sh.tmpl` — downloads the latest stable Neovim Linux x86_64 release into `/opt/nvim-linux-x86_64` (requires `sudo`; Linux only).
 - `run_once_install-texlive.sh.tmpl` — gated behind the `texlive` feature (default off): downloads TeX Live (year and scheme pinned in `.chezmoidata/packages.yaml`, currently 2025/scheme-full) via the network installer. This is several GB and can take a long time; it's opt-in on purpose.
+- `run_onchange_after_install-extra-packages.sh.tmpl` — gated by `features.ghostty`, `features.zsh`, and `features.unzip` (default off); installs selected packages with `pacman --needed` on Arch Linux.
+- `run_onchange_after_enable-ghostty-service.sh.tmpl` — gated by `features.ghosttyService` (default off); enables the Ghostty package-provided user unit for `graphical-session.target`. It does not start the service or vendor a duplicate unit.
+
+Ghostty's managed config selects the built-in `Zacess Dark` theme. Package installation and service enablement are separate features; enabling the service requires Ghostty to be installed and a working user systemd session.
 
 ### Local settings scaffold
 
@@ -78,6 +82,8 @@ The directory tree decides which GitHub account is used, for git (push/pull/clon
 - `dirs`: trees that belong to the account (longest match wins).
 - `owners`: repository owners that belong to the account, used outside those trees (e.g. `/workspaces/*` in containers).
 - `default`: everything else.
+
+The shared default remains `Adrian-Stanea_adi`. To use another default on one machine without changing the shared account rules, set `data.githubDefault` in that machine's `~/.config/chezmoi/chezmoi.toml`; for example, `data.githubDefault = "adrianstanea"`. Leave it empty to use the shared default. The same effective default is used for Git's initial identity and the credential/`gh` account fallback; matching directory and owner rules still take precedence.
 
 Resolution order: explicit username in the URL (`https://adrianstanea@github.com/owner/repo.git`) > dir > owner > default.
 

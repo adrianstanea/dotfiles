@@ -1,5 +1,8 @@
 # Managed by chezmoi. Machine-local settings (safe.directory, ...) go in ~/.gitconfig.local.
-{{- $default := .github.default }}
+{{- $default := .github.default -}}
+{{- if .githubDefault -}}
+{{- $default = .githubDefault -}}
+{{- end }}
 {{- range .github.accounts }}
 {{- if eq .user $default }}
 

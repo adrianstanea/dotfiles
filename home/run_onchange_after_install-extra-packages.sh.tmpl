@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+packages=()
+if {{ if .features.ghostty }}true{{ else }}false{{ end }}; then packages+=(ghostty); fi
+if {{ if .features.zsh }}true{{ else }}false{{ end }}; then packages+=(zsh); fi
+if {{ if .features.unzip }}true{{ else }}false{{ end }}; then packages+=(unzip); fi
+
+if ((${#packages[@]} == 0)); then
+  exit 0
+fi
+
+if [[ "$(uname -s)" != Linux ]] || ! command -v pacman >/dev/null 2>&1; then
+  echo "These optional packages are currently supported only on Arch Linux with pacman." >&2
+  echo "Install manually or disable features.ghostty, features.zsh, and features.unzip in chezmoi.toml." >&2
+  exit 1
+fi
+
+if ((EUID == 0)); then
+  pacman -S --needed --noconfirm "${packages[@]}"
+else
+  sudo pacman -S --needed --noconfirm "${packages[@]}"
+fi

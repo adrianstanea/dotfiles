@@ -1,6 +1,12 @@
 sourceDir = {{ .chezmoi.sourceDir | quote }}
 
+data.githubDefault = {{ promptStringOnce . "githubDefault" "Default GitHub account override (blank uses the shared default)?" "" | quote }}
+
 [data.features]
 gitSource = {{ promptBoolOnce . "features.gitSource" "Build and install the latest stable Git from source?" false }}
 cfs = {{ promptBoolOnce . "features.cfs" "Install Analog Devices CodeFusion Studio?" false }}
 texlive = {{ promptBoolOnce . "features.texlive" "Install TeX Live 2025 (scheme-full, several GB, takes a long time)?" false }}
+ghostty = {{ promptBoolOnce . "features.ghostty" "Install Ghostty (Arch Linux only)?" false }}
+zsh = {{ promptBoolOnce . "features.zsh" "Install Zsh (Arch Linux only)?" false }}
+unzip = {{ promptBoolOnce . "features.unzip" "Install unzip (Arch Linux only)?" false }}
+ghosttyService = {{ promptBoolOnce . "features.ghosttyService" "Enable Ghostty for the graphical-session systemd target?" false }}

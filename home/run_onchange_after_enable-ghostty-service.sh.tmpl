@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! {{ if .features.ghosttyService }}true{{ else }}false{{ end }}; then
+  exit 0
+fi
+
+unit=app-com.mitchellh.ghostty.service
+if [[ "$(uname -s)" != Linux ]]; then
+  echo "Ghostty's graphical-session systemd service is supported only on Linux." >&2
+  exit 1
+fi
+
+if [[ ! -e "/usr/lib/systemd/user/$unit" && ! -e "/usr/share/systemd/user/$unit" ]]; then
+  echo "Ghostty's systemd user unit was not found; install Ghostty before enabling its service." >&2
+  exit 1
+fi
+
+if systemctl --user is-enabled --quiet "$unit"; then
+  echo "Ghostty user service is already enabled."
+  exit 0
+fi
+
+systemctl --user enable "$unit"
