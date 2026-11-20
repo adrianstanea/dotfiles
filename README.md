@@ -4,7 +4,7 @@ My personal dotfiles configuration, inspired by ThePrimeagen's setup.
 
 ## Setup with chezmoi
 
-Git must already be available to clone this repository. The repository's root `install` script installs chezmoi into `~/.local/bin` if needed, then initializes and applies this existing clone without prompting. Git source installation is disabled by default.
+Git must already be available to clone this repository. The repository's root `install` script installs chezmoi into `~/.local/bin` if needed, then initializes and applies this existing clone without prompting. Git source installation is enabled by default (set `features.gitSource = false` to opt out).
 
 ### VS Code Dev Containers
 
@@ -28,7 +28,7 @@ chezmoi apply
 
 During interactive initialization, choose whether to build the latest stable Git release from source, install Analog Devices CodeFusion Studio, install Ghostty/Zsh/unzip, or enable Ghostty's graphical-session systemd service. Stow is no longer required.
 
-To change feature selection later, edit `~/.config/chezmoi/chezmoi.toml` or run `chezmoi edit-config`, then run `chezmoi diff` followed by `chezmoi apply`. Package installation and Ghostty service activation are opt-in. The Ghostty, Zsh, and unzip package features currently support Arch Linux with pacman only. Disabling a package feature does not uninstall its package; disabling Ghostty service activation does not disable an already-enabled service. Disabling Git source installation stops future builds but does not remove installed system packages or `/usr/local/bin/git`.
+To change feature selection later, edit `~/.config/chezmoi/chezmoi.toml` or run `chezmoi edit-config`, then run `chezmoi diff` followed by `chezmoi apply`. Git source installation is on by default; package installation and Ghostty service activation are opt-in. The Ghostty, Zsh, and unzip package features currently support Arch Linux with pacman only. Disabling a package feature does not uninstall its package; disabling Ghostty service activation does not disable an already-enabled service. Disabling Git source installation stops future builds but does not remove installed system packages or `/usr/local/bin/git`.
 
 ### Installing the latest Git from source
 

@@ -3,7 +3,7 @@ sourceDir = {{ .chezmoi.sourceDir | quote }}
 data.githubDefault = {{ promptStringOnce . "githubDefault" "Default GitHub account override (blank uses the shared default)?" "" | quote }}
 
 [data.features]
-gitSource = {{ promptBoolOnce . "features.gitSource" "Build and install the latest stable Git from source?" false }}
+gitSource = {{ promptBoolOnce . "features.gitSource" "Build and install the latest stable Git from source?" true }}
 cfs = {{ promptBoolOnce . "features.cfs" "Install Analog Devices CodeFusion Studio?" false }}
 texlive = {{ promptBoolOnce . "features.texlive" "Install TeX Live 2025 (scheme-full, several GB, takes a long time)?" false }}
 ghostty = {{ promptBoolOnce . "features.ghostty" "Install Ghostty (Arch Linux only)?" false }}
