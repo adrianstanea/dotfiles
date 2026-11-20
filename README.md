@@ -64,6 +64,8 @@ Supporting tools referenced by this configuration are installed by dedicated, id
 - `run_once_install-fzf.sh` — clones `junegunn/fzf` into `~/.fzf` and runs its own installer.
 - `run_once_install-nvm.sh` — installs nvm (pinned version in the script), then the current Node LTS as the default.
 - `run_once_install-bun.sh` — installs bun via its official install script.
+- `run_once_before_install-zsh.sh` — installs zsh (apt, dnf, pacman, zypper or apk) before the other scripts run.
+- `run_once_after_set-login-shell.sh` — makes zsh the login shell with `chsh` (adds it to `/etc/shells` if needed). Skips if zsh is already the login shell. Takes effect at the next login; in WSL run `wsl --shutdown` and reopen.
 - `run_once_install-uv.sh` — installs [uv](https://docs.astral.sh/uv/) into `~/.local/bin` with its official install script (always on). Zsh completion for `uv` and `uvx` is loaded in `30-completion.zsh`. Upgrade with `uv self update`.
 - `run_once_after_install-skillevaluator.sh` — installs [NVIDIA SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator) as a uv tool (`uv tool install --python 3.13 skillevaluator`). The `after` prefix makes it run once uv is installed. Upgrade with `uv tool upgrade skillevaluator`.
 - `run_once_install-gh.sh` — installs the GitHub CLI (distro package, or GitHub's official apt repo on Debian-based systems such as Kali).
