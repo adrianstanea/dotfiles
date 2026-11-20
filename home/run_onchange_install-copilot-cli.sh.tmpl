@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Install or upgrade the standalone GitHub Copilot CLI into ~/.local/bin (features.copilotCli).
+# https://github.com/github/copilot-cli
+set -euo pipefail
+
+{{ if not (dig "features" "copilotCli" true .) -}}
+echo "features.copilotCli is disabled; skipping Copilot CLI."
+exit 0
+{{ end -}}
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "Skipping Copilot CLI install: Linux only." >&2
+  exit 0
+fi
+
+prefix="${COPILOT_INSTALL_PREFIX:-$HOME/.local}"
+case "$(uname -m)" in
+  x86_64 | amd64) arch=x64 ;;
+  aarch64 | arm64) arch=arm64 ;;
+  *) echo "No Copilot CLI build for $(uname -m)." >&2; exit 0 ;;
+esac
+
+tag="$(curl --fail --silent --location -o /dev/null -w '%{url_effective}' \
+  https://github.com/github/copilot-cli/releases/latest 2>/dev/null || true)"
+tag="${tag##*/}"
+if [[ ! "$tag" =~ ^v[0-9] ]]; then
+  echo "Could not resolve the latest Copilot CLI release (offline?); skipping." >&2
+  exit 0
+fi
+
+bin="$prefix/bin/copilot"
+current=""
+[[ -x "$bin" ]] && current="$("$bin" --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
+if [[ -n "$current" && "$current" == "${tag#v}" ]]; then
+  echo "Copilot CLI $current is up to date."
+  exit 0
+fi
+
+name="copilot-linux-${arch}.tar.gz"
+url="https://github.com/github/copilot-cli/releases/download/${tag}"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+echo "Installing Copilot CLI ${tag} (was ${current:-not installed})..."
+curl --fail --silent --show-error --location "$url/$name" --output "$tmp/$name"
+curl --fail --silent --show-error --location "$url/SHA256SUMS.txt" --output "$tmp/SHA256SUMS.txt"
+(cd "$tmp" && grep -F " $name" SHA256SUMS.txt | sha256sum --check --strict -)
+tar -xzf "$tmp/$name" -C "$tmp"
+mkdir -p "$prefix/bin"
+install -m 755 "$tmp/copilot" "$bin"
+echo "Installed $("$bin" --version 2>/dev/null | head -n1) at $bin."

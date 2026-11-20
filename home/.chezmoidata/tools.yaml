@@ -1,0 +1,14 @@
+# Machine-level tools for the AI-agent setup. Bumping a value re-runs the
+# matching run_onchange_ installer on the next `chezmoi apply`.
+gh:
+  # `gh skill install` needs 2.90 or newer; older gh is upgraded.
+  minVersion: "2.90.0"
+  extensions:
+    - github/gh-stack
+
+# uv tool installs: name (PyPI), optional python, optional spec (e.g. "==1.2.3").
+uvTools:
+  - name: skillevaluator
+    python: "3.13"
+  - name: pre-commit
+  - name: graphifyy # installs the `graphify` command

@@ -44,6 +44,17 @@ It installs build dependencies with apt, dnf, pacman or zypper (skip with `--no-
 
 With chezmoi, enabling `features.gitSource` runs the same script after each `chezmoi apply`.
 
+### AI tooling
+
+Versions and tool lists live in `home/.chezmoidata/tools.yaml`; editing that file re-runs the matching script on the next `chezmoi apply`.
+
+- **GitHub CLI** (`gh.minVersion`, currently 2.90.0, needed for `gh skill install`): installed or upgraded when missing or older. On apt systems it uses GitHub's official apt repository (needs sudo); dnf, pacman and zypper use their packages. If gh is still too old or sudo is unavailable, it falls back to the latest release tarball (checksum verified) in `~/.local/bin`. Set `GH_INSTALL_PREFIX` to install elsewhere. Zsh puts `~/.local/bin` ahead of `/usr/bin`, so the tarball gh wins over an older distro gh.
+- **gh extensions** (`gh.extensions`, currently `github/gh-stack`): installed or upgraded after gh; skipped with a message when gh is not authenticated or offline.
+- **uv tools** (`uvTools`: `name`, optional `python`, optional `spec` such as `==1.2.3`): skillevaluator (Python 3.13), pre-commit, and graphify (PyPI name `graphifyy`). Missing tools are installed and existing ones run `uv tool upgrade`.
+- **GitHub Copilot CLI** (`features.copilotCli`, default on): latest standalone `copilot-linux-{x64,arm64}` release in `~/.local/bin`, checksum verified and upgraded when the latest tag differs. Set `COPILOT_INSTALL_PREFIX` to install elsewhere.
+
+To bump a minimum or add a tool, edit `tools.yaml`, then run `chezmoi diff` and `chezmoi apply`.
+
 ### Guides and workflow
 
 - [Quick Start](https://www.chezmoi.io/quick-start/) for initialization, preview, and apply.
@@ -68,8 +79,7 @@ Supporting tools referenced by this configuration are installed by dedicated, id
 - `run_once_after_set-login-shell.sh` — makes zsh the login shell with `chsh` (adds it to `/etc/shells` if needed). Skips if zsh is already the login shell. Takes effect at the next login; in WSL run `wsl --shutdown` and reopen.
 - `run_once_after_set-devcontainer-shell.sh` — dev containers only: VS Code picks the terminal shell when its server starts, so `chsh` isn't seen until a reload. This adds a marked block to `~/.bashrc` that `exec`s zsh in interactive bash (set `DOTFILES_NO_ZSH_EXEC=1` to stay in bash) and writes the VS Code remote setting `terminal.integrated.defaultProfile.linux = zsh` if that file doesn't exist yet. New terminals then open in zsh without `exec zsh`.
 - `run_once_install-uv.sh` — installs [uv](https://docs.astral.sh/uv/) into `~/.local/bin` with its official install script (always on). Zsh completion for `uv` and `uvx` is loaded in `30-completion.zsh`. Upgrade with `uv self update`.
-- `run_once_after_install-skillevaluator.sh` — installs [NVIDIA SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator) as a uv tool (`uv tool install --python 3.13 skillevaluator`). The `after` prefix makes it run once uv is installed. Upgrade with `uv tool upgrade skillevaluator`.
-- `run_once_install-gh.sh` — installs the GitHub CLI (distro package, or GitHub's official apt repo on Debian-based systems such as Kali).
+- AI tooling scripts (`run_onchange_install-gh.sh.tmpl`, `run_onchange_after_install-uv-tools.sh.tmpl`, `run_onchange_install-copilot-cli.sh.tmpl`) are described under [AI tooling](#ai-tooling).
 - `run_once_install-cim.sh` — installs [Code in Motion (`cim`)](https://github.com/analogdevicesinc/cim) into `~/.local/bin` with its official install script. Always on; needs `git make tar unzip python3 python3-venv python3-pip curl` and fails with a list of what's missing. Upgrade with `cim utils update`.
 - `run_once_install-nvim.sh.tmpl` — downloads the latest stable Neovim Linux x86_64 release into `/opt/nvim-linux-x86_64` (requires `sudo`; Linux only).
 - `run_once_install-texlive.sh.tmpl` — gated behind the `texlive` feature (default off): downloads TeX Live (year and scheme pinned in `.chezmoidata/packages.yaml`, currently 2025/scheme-full) via the network installer. This is several GB and can take a long time; it's opt-in on purpose.

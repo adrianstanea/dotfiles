@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Install or upgrade the uv tools listed in .chezmoidata/tools.yaml. Runs after uv is installed
+# and re-runs when the list changes. Upgrade manually with `uv tool upgrade --all`.
+set -euo pipefail
+
+export PATH="$HOME/.local/bin:$PATH"
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is required to install uv tools but was not found." >&2
+  exit 1
+fi
+
+installed="$(uv tool list 2>/dev/null || true)"
+failed=0
+
+install_or_upgrade() {
+  local name="$1" python="$2" spec="$3"
+  if grep -q "^${name} " <<<"$installed"; then
+    echo "Upgrading $name..."
+    if [[ -n "$spec" ]]; then
+      uv tool install --force ${python:+--python "$python"} "${name}${spec}" || failed=1
+    else
+      uv tool upgrade "$name" || failed=1
+    fi
+  else
+    echo "Installing $name..."
+    uv tool install ${python:+--python "$python"} "${name}${spec}" || failed=1
+  fi
+}
+
+{{ range .uvTools -}}
+install_or_upgrade {{ .name | quote }} {{ get . "python" | quote }} {{ get . "spec" | quote }}
+{{ end }}
+exit "$failed"
