@@ -3,6 +3,13 @@
 export BUN_INSTALL=${BUN_INSTALL:-$HOME/.bun}
 zsh_add_path "$BUN_INSTALL/bin"
 
+# Prefer Neovim when it is installed.
+if (( $+commands[nvim] )); then
+  alias vim=nvim
+  alias vi=nvim
+  export EDITOR=nvim VISUAL=nvim
+fi
+
 zsh_load_nvm() {
   [[ -n ${NVM_LOADED:-} ]] && return 0
   if [[ -z ${NVM_DIR:-} ]]; then
