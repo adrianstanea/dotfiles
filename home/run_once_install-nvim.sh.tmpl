@@ -2,7 +2,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-install_dir=/opt/nvim-linux-x86_64
+case "$(uname -m)" in
+  x86_64 | amd64) asset=nvim-linux-x86_64 ;;
+  aarch64 | arm64) asset=nvim-linux-arm64 ;;
+  *)
+    echo "Unsupported architecture for the Neovim release tarball: $(uname -m)." >&2
+    exit 1
+    ;;
+esac
+install_dir="/opt/$asset"
 
 priv=""
 [[ $EUID -eq 0 ]] || priv="sudo"
@@ -10,20 +18,15 @@ priv=""
 if [[ -x "$install_dir/bin/nvim" ]]; then
   echo "Neovim already installed at $install_dir."
 else
-  if [[ "$(uname -m)" != "x86_64" ]]; then
-    echo "This script only supports x86_64; found $(uname -m)." >&2
-    exit 1
-  fi
-
   download_dir="$(mktemp -d)"
   trap 'rm -rf "$download_dir"' EXIT
 
-  echo "Downloading latest stable Neovim release..."
-  curl -fsSL --output "$download_dir/nvim-linux-x86_64.tar.gz" \
-    https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
+  echo "Downloading latest stable Neovim release ($asset)..."
+  curl -fsSL --output "$download_dir/$asset.tar.gz" \
+    "https://github.com/neovim/neovim/releases/latest/download/$asset.tar.gz"
 
   $priv rm -rf "$install_dir"
-  $priv tar -C /opt -xzf "$download_dir/nvim-linux-x86_64.tar.gz"
+  $priv tar -C /opt -xzf "$download_dir/$asset.tar.gz"
   echo "Installed $("$install_dir/bin/nvim" --version | head -n1)"
 fi
 

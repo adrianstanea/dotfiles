@@ -12,7 +12,8 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-if uv tool list 2>/dev/null | grep -q '^skillevaluator '; then
+installed_tools="$(uv tool list 2>/dev/null || true)"
+if grep -q '^skillevaluator ' <<<"$installed_tools"; then
   echo "skillevaluator already installed; upgrade with: uv tool upgrade skillevaluator"
   exit 0
 fi

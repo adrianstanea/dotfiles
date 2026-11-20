@@ -4,7 +4,11 @@ set -euo pipefail
 zsh_home="$HOME/.oh-my-zsh"
 custom_plugins="$zsh_home/custom/plugins"
 
-if [[ ! -d "$zsh_home" ]]; then
+if [[ ! -r "$zsh_home/oh-my-zsh.sh" ]]; then
+  if [[ -d "$zsh_home" ]]; then
+    echo "Removing incomplete Oh My Zsh install at $zsh_home..."
+    rm -rf "$zsh_home"
+  fi
   echo "Installing Oh My Zsh..."
   RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
     sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
