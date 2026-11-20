@@ -64,6 +64,10 @@ Supporting tools referenced by this configuration are installed by dedicated, id
 - `run_once_install-fzf.sh` — clones `junegunn/fzf` into `~/.fzf` and runs its own installer.
 - `run_once_install-nvm.sh` — installs nvm (pinned version in the script), then the current Node LTS as the default.
 - `run_once_install-bun.sh` — installs bun via its official install script.
+- `run_once_install-uv.sh` — installs [uv](https://docs.astral.sh/uv/) into `~/.local/bin` with its official install script (always on). Zsh completion for `uv` and `uvx` is loaded in `30-completion.zsh`. Upgrade with `uv self update`.
+- `run_once_after_install-skillevaluator.sh` — installs [NVIDIA SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator) as a uv tool (`uv tool install --python 3.13 skillevaluator`). The `after` prefix makes it run once uv is installed. Upgrade with `uv tool upgrade skillevaluator`.
+- `run_once_install-gh.sh` — installs the GitHub CLI (distro package, or GitHub's official apt repo on Debian-based systems such as Kali).
+- `run_once_install-cim.sh` — installs [Code in Motion (`cim`)](https://github.com/analogdevicesinc/cim) into `~/.local/bin` with its official install script. Always on; needs `git make tar unzip python3 python3-venv python3-pip curl` and fails with a list of what's missing. Upgrade with `cim utils update`.
 - `run_once_install-nvim.sh.tmpl` — downloads the latest stable Neovim Linux x86_64 release into `/opt/nvim-linux-x86_64` (requires `sudo`; Linux only).
 - `run_once_install-texlive.sh.tmpl` — gated behind the `texlive` feature (default off): downloads TeX Live (year and scheme pinned in `.chezmoidata/packages.yaml`, currently 2025/scheme-full) via the network installer. This is several GB and can take a long time; it's opt-in on purpose.
 - `run_onchange_after_install-extra-packages.sh.tmpl` — gated by `features.ghostty`, `features.zsh`, and `features.unzip` (default off); installs selected packages with `pacman --needed` on Arch Linux.
